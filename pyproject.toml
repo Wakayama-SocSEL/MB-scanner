@@ -1,0 +1,144 @@
+[project]
+name = "mb-scanner"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "tomoya0318", email = "s266227@wakayama-u.ac.jp" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2.11.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.12.9",
+    "pyright>=1.1.390",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+exclude = [
+    ".venv",
+    ".git",
+    "__pycache__",
+    ".pytest_cache",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+# https://docs.astral.sh/ruff/rules/
+select = [
+    "E",    # pycodestyle (Error)
+    "W",    # pycodestyle (Warning)
+    "F",    # Pyflakes
+    "I",    # isort (importの並び替え)
+    "D",    # docstrings (ドキュメンテーション文字列のチェック)
+    "UP",   # pyupgrade (新しいPython構文への更新)
+    "B",    # flake8-bugbear (バグの可能性が高いコードを検出)
+    "C4",   # flake8-comprehensions (不要な内包表記の書き換え)
+    "SIM",  # flake8-simplify (よりシンプルな書き方へのリファクタリング)
+    "PTH",  # flake8-use-pathlib (os.pathの代わりにpathlibを推奨)
+    "RUF",  # Ruff固有のルール
+    "PERF", # perflint (パフォーマンス関連の改善提案)
+    "PL",   # Pylint (コード品質向上)
+    "N",    # pep8-naming (命名規則)
+    "RET",  # flake8-return (return文の改善提案)
+]
+
+ignore = [
+    "PLR2004", # マジックナンバーの使用 (コード生成プロジェクトでは許可)
+    "T201",    # print文の使用 (デバッグ用途で使用)
+    "PLR0913", # 引数が多すぎる (AST処理で必要)
+    "PLR0912", # 分岐が多すぎる (AST処理で必要)
+    "PLR0915", # 文が多すぎる (AST処理で必要)
+    "PLR0911", # 戻り値が多すぎる (AST処理で必要)
+    "PERF203", # try-except内でのループ (必要な場合がある)
+    "RUF002",  # docstring内の日本語文字 (日本語プロジェクトのため許可)
+    "RUF003",  # comment内の日本語文字 (日本語プロジェクトのため許可)
+    "E501",    # 行が長すぎる (コード生成で長いテンプレートが必要)
+    "D400",
+    "D413",
+    "D415",
+    # 競合するdocstringルールを無効化
+    "D203",    # incorrect-blank-line-before-class (D211と競合)
+    "D213",    # multi-line-summary-second-line (D212と競合)
+    "RUF001",  # docstring内の日本語文字 (日本語プロジェクトのため許可)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401"]  # 未使用import (re-exportの場合)
+
+[tool.ruff.lint.isort]
+# プロジェクト内のモジュールを正しく認識
+known-first-party = ["mb_scanner"]
+# 標準ライブラリ、サードパーティ、ファーストパーティの順に並び替え
+force-sort-within-sections = true
+
+[tool.ruff.format]
+# Ruffのフォーマッターに関する設定 (Blackとほぼ互換)
+# -----------------------------------------------
+# 文字列のクォートをダブルクォートに統一する。
+quote-style = "double"
+# インデントにスペースを使う。
+indent-style = "space"
+# 改行コードをLFに統一する。
+line-ending = "lf"
+
+[tool.pytest.ini_options]
+# pytestの設定
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# テスト実行時の追加オプション
+addopts = [
+    "--strict-markers",  # 未定義のマーカーを警告
+    "--tb=short",        # トレースバックを短縮表示
+    "--disable-warnings", # 警告を無効化（必要に応じて削除可能）
+]
+# カスタムマーカー（必要に応じて追加）
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.coverage.run]
+# カバレッジ測定対象のソースディレクトリ
+source = ["mb_scanner"]
+# 除外するファイル・ディレクトリ
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+# カバレッジレポートの設定
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.pyright]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+]
