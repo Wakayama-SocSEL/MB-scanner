@@ -11,7 +11,7 @@ MB-Scanner は、GitHub 上の多数の公開 JavaScript リポジトリに対�
 | --- | --- | --- |
 | 言語 | Python 3.13+ | ライブラリが豊富で、外部コマンド連携が容易。 |
 | データベース | SQLite | サーバーレスでバッチ処理の進捗管理と再開が簡単。 |
-| ORM | SQLAlchemy または Peewee | SQL を直接書かずに安全で保守しやすいコードを実現。 |
-| GitHub API | `requests` / `PyGithub` | 条件に合うリポジトリを効率よく取得。 |
+| ORM | SQLAlchemy | SQL を直接書かずに安全で保守しやすいコードを実現。 |
+| GitHub API | `PyGithub` | 条件に合うリポジトリを効率よく取得。 |
 | 外部ツール実行 | `subprocess` | `git clone` や `codeql` コマンドを柔軟に呼び出す。 |
 | 開発支援 | `uv`, `just` | パッケージ管理とタスク運用を統一。 |
