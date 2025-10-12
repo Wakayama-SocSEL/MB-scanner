@@ -24,3 +24,4 @@
 以下を参照してください。
 
 1. [project-overview.md](./project-overview.md) - プロジェクト概要
+2. [db-design.md](./db-design.md) - データベース設計ドキュメント
