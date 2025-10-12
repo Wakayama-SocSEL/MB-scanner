@@ -1,7 +1,5 @@
 # データベース設計ドキュメント
 
-**最終更新**: 2025-10-12  
-
 ## 概要
 - SQLite + SQLAlchemy を採用し、正規化・拡張性・検索性能・命名の明確化を重視。
 - ドメイン名は Repository と区別するため Project を採用。
@@ -36,3 +34,31 @@
 - 初期化は `mb_scanner.db.session.init_db()` を呼び、モデルを import 済みにしてから `create_all` を実行。
 - 操作用途: `SessionLocal()` からサービス層（`ProjectService`, `TopicService` など）を利用。
 - 今後の検討: Alembic によるマイグレーション、自動ページネーションやキャッシュ、分析テーブル追加。
+
+## ER 図
+```mermaid
+erDiagram
+    PROJECTS ||--o{ PROJECT_TOPICS : has
+    TOPICS ||--o{ PROJECT_TOPICS : has
+
+    PROJECTS {
+        int id PK
+        string full_name UK
+        string url
+        int stars
+        datetime last_commit_date
+        string language
+        text description
+        datetime fetched_at
+    }
+
+    TOPICS {
+        int id PK
+        string name UK
+    }
+
+    PROJECT_TOPICS {
+        int project_id PK_FK
+        int topic_id PK_FK
+    }
+```
