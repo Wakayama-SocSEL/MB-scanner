@@ -12,3 +12,6 @@ debug/
 
 # output directories
 out/
+
+# AI tmp files
+.ai/
