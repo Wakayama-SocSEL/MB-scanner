@@ -16,3 +16,26 @@ python-deps: venv
     @echo "📦 Installing Python dependencies..."
     uv sync --dev
     uv pip install -e .
+
+# -----------------------------------------------------------------------------
+# コードの品質管理 (Code Quality) ✨
+# -----------------------------------------------------------------------------
+
+# プロジェクトをフォーマットする
+format:
+    @echo "🎨 Formatting code with Ruff..."
+    uvx ruff format .
+
+# プロジェクトの静的解析(Lint)を実行する
+lint:
+    @echo "🔬 Linting code with Ruff..."
+    uvx ruff check .
+
+# フォーマットと自動修正をまとめて実行する
+fix: format
+    uvx ruff check . --fix
+
+# 型チェックを実行する
+typecheck:
+    @echo "🔍 Running type check with Pyright..."
+    uv run pyright
