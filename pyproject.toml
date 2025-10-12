@@ -8,10 +8,11 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "pydantic-settings[dotenv]",
-    "typer[all]",
+    "pydantic-settings",
+    "typer",
     "sqlalchemy",
     "pydantic>=2.11.7",
+    "PyGithub",
 ]
 
 [build-system]
