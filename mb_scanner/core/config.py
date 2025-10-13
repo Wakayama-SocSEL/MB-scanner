@@ -6,6 +6,7 @@
 
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,9 +19,31 @@ class Settings(BaseSettings):
     # .envファイルを読み込む設定と、環境変数の接頭辞（プレフィックス）を指定
     model_config = SettingsConfigDict(env_file=".env", env_prefix="MB_SCANNER_")
 
-    # ユーザーが環境変数で直接指定できる値
+    # データベース関連
     data_dir: Path | None = None  # 例: MB_SCANNER_DATA_DIR=/path/to/data
     db_file: Path | None = None  # 例: MB_SCANNER_DB_FILE=/path/to/data/app.db
+
+    # GitHub API
+    github_token: str | None = Field(default=None, validation_alias="GITHUB_TOKEN")  # GitHub API Token
+    github_search_default_language: str = Field(
+        default="JavaScript",
+        description="GitHub検索で使用するデフォルト言語",
+    )
+    github_search_default_min_stars: int = Field(
+        default=100,
+        ge=0,
+        description="GitHub検索で使用するデフォルトの最小スター数",
+    )
+    github_search_default_max_days_since_commit: int = Field(
+        default=365,
+        ge=1,
+        description="GitHub検索で使用するデフォルトの最終コミット経過日数",
+    )
+
+    # ログ設定
+    log_level: str = "INFO"  # 例: MB_SCANNER_LOG_LEVEL=DEBUG
+    log_file: Path | None = None  # 例: MB_SCANNER_LOG_FILE=/path/to/logs/app.log
+    log_to_console: bool = True  # 例: MB_SCANNER_LOG_TO_CONSOLE=false
 
     @property
     def effective_data_dir(self) -> Path:
@@ -35,6 +58,12 @@ class Settings(BaseSettings):
         """データベースファイルの有効なパスを返す"""
         # db_fileが指定されていればそれを使い、なければデフォルトパスを生成
         return self.db_file or self.effective_data_dir / "mb_scanner.db"
+
+    @property
+    def effective_log_file(self) -> Path:
+        """ログファイルの有効なパスを返す"""
+        # log_fileが指定されていればそれを使い、なければデフォルトパスを生成
+        return self.log_file or self.effective_data_dir / "mb_scanner.log"
 
     @property
     def database_url(self) -> str:
