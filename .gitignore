@@ -10,8 +10,12 @@ debug/
 # Virtual environments
 .venv
 
-# output directories
+# output files
 out/
+*.log
 
 # AI tmp files
 .ai/
+
+# Environment variables file
+.env

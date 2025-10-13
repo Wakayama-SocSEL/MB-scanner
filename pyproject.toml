@@ -15,6 +15,9 @@ dependencies = [
     "PyGithub",
 ]
 
+[project.scripts]
+mb-scanner = "mb_scanner.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -146,3 +149,5 @@ exclude = [
     ".venv",
     "**/__pycache__",
 ]
+stubPath = "stubs"
+reportMissingTypeStubs = false
