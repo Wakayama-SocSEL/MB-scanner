@@ -13,6 +13,7 @@ debug/
 # output files
 out/
 *.log
+data/codeql-dbs/
 
 # AI tmp files
 .ai/
