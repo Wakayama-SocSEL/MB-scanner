@@ -4,12 +4,14 @@
 """
 
 from mb_scanner.lib.github.client import GitHubClient
+from mb_scanner.lib.github.clone import RepositoryCloner
 from mb_scanner.lib.github.schema import GitHubRepository
 from mb_scanner.lib.github.search import SearchCriteria, build_default_search_criteria
 
 __all__ = [
     "GitHubClient",
     "GitHubRepository",
+    "RepositoryCloner",
     "SearchCriteria",
     "build_default_search_criteria",
 ]
