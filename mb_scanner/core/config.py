@@ -45,6 +45,24 @@ class Settings(BaseSettings):
     log_file: Path | None = None  # 例: MB_SCANNER_LOG_FILE=/path/to/logs/app.log
     log_to_console: bool = True  # 例: MB_SCANNER_LOG_TO_CONSOLE=false
 
+    # CodeQL関連設定
+    codeql_cli_path: str = Field(
+        default="codeql",
+        description="CodeQL CLIの実行パス（PATHに通っている場合は'codeql'）",
+    )
+    codeql_db_base_dir: Path | None = Field(
+        default=None,
+        description="CodeQLデータベース保存先のベースディレクトリ",
+    )
+    codeql_clone_base_dir: Path | None = Field(
+        default=None,
+        description="リポジトリクローン先のベースディレクトリ",
+    )
+    codeql_default_language: str = Field(
+        default="javascript",
+        description="CodeQL解析のデフォルト言語",
+    )
+
     @property
     def effective_data_dir(self) -> Path:
         """データディレクトリの有効なパスを返す"""
@@ -69,6 +87,20 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         """SQLAlchemy用のデータベースURLを返す"""
         return f"sqlite:///{self.effective_db_file.resolve()}"
+
+    @property
+    def effective_codeql_db_dir(self) -> Path:
+        """CodeQL DBの保存先ディレクトリを返す（data/codeql-dbs）"""
+        path = self.codeql_db_base_dir or self.effective_data_dir / "codeql-dbs"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def effective_codeql_clone_dir(self) -> Path:
+        """リポジトリクローン先ディレクトリを返す（/tmp/mb-scanner-clones）"""
+        path = self.codeql_clone_base_dir or Path("/tmp/mb-scanner-clones")
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
 
 # シングルトンとしてインスタンスを作成
