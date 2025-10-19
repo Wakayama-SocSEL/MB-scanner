@@ -54,6 +54,15 @@ class ProjectService:
         """
         return self.db.query(Project).count()
 
+    def get_all_project_urls(self) -> list[tuple[int, str, str]]:
+        """全プロジェクトの(id, full_name, url)を取得する
+
+        Returns:
+            list[tuple[int, str, str]]: [(project_id, full_name, url), ...]
+        """
+        projects = self.db.query(Project.id, Project.full_name, Project.url).all()
+        return [(p.id, p.full_name, p.url) for p in projects]
+
     def save_project(
         self,
         full_name: str,
