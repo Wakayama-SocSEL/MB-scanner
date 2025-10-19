@@ -5,6 +5,7 @@ Typer アプリケーションを初期化し、各サブコマンド（search, 
 
 from typer import Typer
 
+from mb_scanner.cli.codeql import codeql_app
 from mb_scanner.cli.search import search_app
 
 # メインの Typer アプリケーションを作成
@@ -16,9 +17,8 @@ app = Typer(help="MB-Scanner CLI - GitHub リポジトリ検索と保存ツー�
 app.registered_commands.extend(search_app.registered_commands)
 app.registered_groups.extend(search_app.registered_groups)
 
-# 将来の拡張例（コメントアウト）:
-# from mb_scanner.cli.codeql import codeql_app
-# app.add_typer(codeql_app, name="codeql")
+# codeql コマンドを追加
+app.add_typer(codeql_app, name="codeql")
 
 
 def main() -> None:

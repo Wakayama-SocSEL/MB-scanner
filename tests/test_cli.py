@@ -41,8 +41,8 @@ def test_search_command_with_defaults(runner, mock_workflow_stats):
         mock_workflow.execute.return_value = mock_workflow_stats
         mock_workflow_class.return_value = mock_workflow
 
-        # コマンドを実行（searchはデフォルトコマンドなので引数なし）
-        result = runner.invoke(app, [])
+        # コマンドを実行（searchコマンドを明示的に指定）
+        result = runner.invoke(app, ["search"])
 
         # 検証
         assert result.exit_code == 0
@@ -72,6 +72,7 @@ def test_search_command_with_custom_options(runner, mock_workflow_stats):
         result = runner.invoke(
             app,
             [
+                "search",
                 "--language",
                 "Python",
                 "--min-stars",
@@ -125,6 +126,7 @@ def test_search_command_with_short_options(runner, mock_workflow_stats):
         result = runner.invoke(
             app,
             [
+                "search",
                 "-l",
                 "TypeScript",
                 "-s",
@@ -175,7 +177,7 @@ def test_search_command_with_failures(runner):
         mock_workflow_class.return_value = mock_workflow
 
         # コマンドを実行
-        result = runner.invoke(app, [])
+        result = runner.invoke(app, ["search"])
 
         # 検証
         assert result.exit_code == 0
@@ -199,7 +201,7 @@ def test_search_command_with_exception(runner):
         mock_workflow_class.return_value = mock_workflow
 
         # コマンドを実行
-        result = runner.invoke(app, [])
+        result = runner.invoke(app, ["search"])
 
         # 検証
         assert result.exit_code == 1
@@ -223,7 +225,7 @@ def test_search_command_workflow_cleanup(runner, mock_workflow_stats):
         mock_workflow_class.return_value = mock_workflow
 
         # コマンドを実行
-        result = runner.invoke(app, [])
+        result = runner.invoke(app, ["search"])
 
         # 検証
         assert result.exit_code == 0
@@ -247,7 +249,7 @@ def test_search_command_cleanup_on_exception(runner):
         mock_workflow_class.return_value = mock_workflow
 
         # コマンドを実行
-        result = runner.invoke(app, [])
+        result = runner.invoke(app, ["search"])
 
         # 検証
         assert result.exit_code == 1
@@ -257,7 +259,7 @@ def test_search_command_cleanup_on_exception(runner):
 
 def test_search_command_invalid_min_stars(runner):
     """無効な最小スター数（負の値）が拒否されることを確認する"""
-    result = runner.invoke(app, ["--min-stars", "-10"])
+    result = runner.invoke(app, ["search", "--min-stars", "-10"])
 
     # 検証
     assert result.exit_code != 0
@@ -268,7 +270,7 @@ def test_search_command_invalid_min_stars(runner):
 
 def test_search_command_invalid_max_days(runner):
     """無効な最大日数（0以下）が拒否されることを確認する"""
-    result = runner.invoke(app, ["--max-days-since-commit", "0"])
+    result = runner.invoke(app, ["search", "--max-days-since-commit", "0"])
 
     # 検証
     assert result.exit_code != 0
