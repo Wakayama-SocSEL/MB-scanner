@@ -11,7 +11,7 @@ debug/
 .venv
 
 # output files
-out/
+outputs/
 *.log
 data/codeql-dbs/
 
