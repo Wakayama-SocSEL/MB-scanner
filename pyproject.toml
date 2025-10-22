@@ -13,6 +13,7 @@ dependencies = [
     "sqlalchemy",
     "pydantic>=2.11.7",
     "PyGithub",
+    "joblib>=1.4.2",
 ]
 
 [project.scripts]
@@ -83,6 +84,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]  # 未使用import (re-exportの場合)
+"mb_scanner/cli/*.py" = ["B008"]  # typer.Optionをデフォルト引数で使用 (Typerの正しい使い方)
 
 [tool.ruff.lint.isort]
 # プロジェクト内のモジュールを正しく認識
