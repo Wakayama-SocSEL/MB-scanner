@@ -1,6 +1,6 @@
 """CodeQLデータベース作成ワークフローモジュール
 
-このモジュールでは、リポジトリのクローン、CodeQL DB作成、クリーンアップを統合した
+このモジュールでは、リポジトリのクローンとCodeQL DB作成を統合した
 ワークフローを提供します。
 """
 
@@ -10,7 +10,6 @@ from typing import Any
 
 from mb_scanner.lib.codeql.database import CodeQLDatabaseManager
 from mb_scanner.lib.github.clone import RepositoryCloner
-from mb_scanner.utils.cleanup import cleanup_directory
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 class CodeQLDatabaseCreationWorkflow:
     """CodeQLデータベース作成ワークフロー
 
-    リポジトリのクローン、DB作成、クリーンアップを統合します。
+    リポジトリのクローンとDB作成を統合します。
     """
 
     def __init__(
@@ -51,9 +50,8 @@ class CodeQLDatabaseCreationWorkflow:
 
         フロー:
         1. 既存DBのチェック
-        2. リポジトリクローン
+        2. リポジトリクローン（既存の場合はスキップ）
         3. CodeQL DB作成
-        4. クリーンアップ（成功・失敗に関わらず）
 
         Args:
             project_full_name: プロジェクト名（owner/repo）
@@ -83,9 +81,9 @@ class CodeQLDatabaseCreationWorkflow:
         clone_path = self.clone_base_dir / safe_name
 
         try:
-            # 2. リポジトリクローン
+            # 2. リポジトリクローン（既存の場合はスキップ）
             logger.info("Cloning repository: %s", repository_url)
-            self.cloner.clone(repository_url, clone_path)
+            self.cloner.clone(repository_url, clone_path, skip_if_exists=True)
 
             # 3. CodeQL DB作成
             logger.info("Creating CodeQL database for: %s", project_full_name)
@@ -109,11 +107,6 @@ class CodeQLDatabaseCreationWorkflow:
                 "status": "error",
                 "error": str(e),
             }
-
-        finally:
-            # 4. クリーンアップ（必ず実行）
-            logger.info("Cleaning up clone directory: %s", clone_path)
-            cleanup_directory(clone_path, ignore_errors=True)
 
     def create_databases_batch(
         self,

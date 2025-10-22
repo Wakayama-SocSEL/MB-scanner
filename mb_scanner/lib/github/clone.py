@@ -28,6 +28,7 @@ class RepositoryCloner:
         *,
         depth: int = 1,
         timeout: int = 600,
+        skip_if_exists: bool = False,
     ) -> Path:
         """リポジトリをクローンする
 
@@ -36,6 +37,7 @@ class RepositoryCloner:
             destination: クローン先ディレクトリ
             depth: クローンの深さ（デフォルト: 1 = shallow clone）
             timeout: タイムアウト時間（秒、デフォルト: 600秒）
+            skip_if_exists: 既存ディレクトリがある場合スキップするか（デフォルト: False）
 
         Returns:
             Path: クローンされたディレクトリのパス
@@ -43,14 +45,20 @@ class RepositoryCloner:
         Raises:
             subprocess.CalledProcessError: cloneに失敗した場合
             subprocess.TimeoutExpired: タイムアウトした場合
-            ValueError: destinationが既に存在する場合
+            ValueError: destinationが既に存在し、skip_if_exists=Falseの場合
 
         Examples:
             >>> cloner = RepositoryCloner()
             >>> cloner.clone("https://github.com/owner/repo.git", Path("/tmp/repo"))
             Path('/tmp/repo')
+            >>> cloner.clone("https://github.com/owner/repo.git", Path("/tmp/repo"), skip_if_exists=True)
+            Path('/tmp/repo')
         """
         if destination.exists():
+            if skip_if_exists:
+                logger.info("Destination already exists, skipping clone: %s", destination)
+                return destination
+
             error_msg = f"Destination directory already exists: {destination}"
             logger.error(error_msg)
             raise ValueError(error_msg)
