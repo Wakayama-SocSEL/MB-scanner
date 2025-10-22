@@ -1,18 +1,22 @@
 """CodeQL関連のCLIコマンドモジュール
 
-このモジュールでは、CodeQLデータベース作成のためのCLIコマンドを提供します。
+このモジュールでは、CodeQLデータベース作成およびクエリ実行のためのCLIコマンドを提供します。
 """
+
+from pathlib import Path
 
 import typer
 
 from mb_scanner.core.config import settings
 from mb_scanner.db.session import SessionLocal
 from mb_scanner.lib.codeql import CodeQLCLI, CodeQLDatabaseManager
+from mb_scanner.lib.codeql.analyzer import CodeQLResultAnalyzer
 from mb_scanner.lib.github import RepositoryCloner
 from mb_scanner.services.project_service import ProjectService
 from mb_scanner.workflows.codeql_database_creation import CodeQLDatabaseCreationWorkflow
+from mb_scanner.workflows.codeql_query_execution import CodeQLQueryExecutionWorkflow
 
-codeql_app = typer.Typer(help="CodeQLデータベース作成コマンド")
+codeql_app = typer.Typer(help="CodeQL関連コマンド")
 
 
 @codeql_app.command("create-db")
@@ -159,3 +163,198 @@ def create_database_batch(
 
     finally:
         db.close()
+
+
+@codeql_app.command("query")
+def query(
+    project_name: str = typer.Argument(..., help="プロジェクト名（owner/repo形式）"),
+    query_files: list[Path] = typer.Option(..., "--query-files", "-q", help="クエリファイルのパス（複数指定可能）"),
+    format: str = typer.Option(None, "--format", help="出力形式"),
+    threads: int | None = typer.Option(None, "--threads", help="使用するスレッド数"),
+    ram: int | None = typer.Option(None, "--ram", help="使用するRAM（MB）"),
+) -> None:
+    """指定したプロジェクトのCodeQLデータベースに対してクエリを実行する
+
+    各クエリファイルごとに別々のSARIFファイルを出力します。
+    出力先: outputs/queries/{query_name}/{project-name}.sarif
+
+    Examples:
+        $ mb-scanner codeql query facebook/react --query-files codeql/queries/id_10.ql
+        $ mb-scanner codeql query facebook/react -q query1.ql -q query2.ql
+    """
+    # デフォルト値の適用
+    if format is None:
+        format = settings.codeql_default_output_format
+
+    typer.echo(f"Executing CodeQL query for: {project_name}")
+    typer.echo(f"Query files: {', '.join(str(q) for q in query_files)}")
+    typer.echo(f"Output directory: {settings.effective_codeql_output_dir}")
+
+    # ワークフローを初期化
+    codeql_cli = CodeQLCLI(cli_path=settings.codeql_cli_path)
+    db_manager = CodeQLDatabaseManager(
+        cli=codeql_cli,
+        base_dir=settings.effective_codeql_db_dir,
+    )
+    workflow = CodeQLQueryExecutionWorkflow(
+        codeql_cli=codeql_cli,
+        db_manager=db_manager,
+    )
+
+    # クエリを実行
+    result = workflow.execute_query_for_project(
+        project_full_name=project_name,
+        query_files=query_files,
+        output_base_dir=settings.effective_codeql_output_dir,
+        format=format,
+        threads=threads,
+        ram=ram,
+    )
+
+    # 結果を表示
+    if result["status"] == "success":
+        typer.echo(f"✓ Successfully executed {len(result['results'])} queries")
+        for query_result in result["results"]:
+            typer.echo(f"  - {query_result['query_file']}: {query_result['result_count']} results")
+            typer.echo(f"    Output: {query_result['output_path']}")
+    elif result["status"] == "error":
+        typer.echo(f"✗ Error: {result['error']}", err=True)
+        raise typer.Exit(code=1)
+
+
+@codeql_app.command("query-batch")
+def query_batch(
+    query_files: list[Path] = typer.Option(..., "--query-files", "-q", help="クエリファイルのパス（複数指定可能）"),
+    max_projects: int | None = typer.Option(None, "--max-projects", help="最大プロジェクト数"),
+    format: str = typer.Option(None, "--format", help="出力形式"),
+    threads: int | None = typer.Option(None, "--threads", help="使用するスレッド数"),
+    ram: int | None = typer.Option(None, "--ram", help="使用するRAM（MB）"),
+) -> None:
+    """データベース上の全プロジェクトに対してクエリを一括実行する
+
+    Examples:
+        $ mb-scanner codeql query-batch --query-files codeql/queries/id_10.ql
+        $ mb-scanner codeql query-batch -q codeql/queries/id_10.ql --max-projects 10
+        $ mb-scanner codeql query-batch -q query1.ql -q query2.ql
+    """
+    # デフォルト値の適用
+    if format is None:
+        format = settings.codeql_default_output_format
+
+    typer.echo("Starting batch CodeQL query execution")
+    typer.echo(f"Query files: {', '.join(str(q) for q in query_files)}")
+    typer.echo(f"Max projects: {max_projects or 'unlimited'}")
+    typer.echo(f"Output directory: {settings.effective_codeql_output_dir}")
+
+    # データベースセッションを作成
+    db = SessionLocal()
+
+    try:
+        # プロジェクトサービスから全プロジェクトを取得
+        project_service = ProjectService(db)
+        all_projects = project_service.get_all_projects()
+
+        if not all_projects:
+            typer.echo("No projects found in database")
+            return
+
+        # プロジェクト名のリストを作成
+        project_names = [project.full_name for project in all_projects]
+
+        # max_projectsが指定されている場合は制限
+        if max_projects is not None:
+            project_names = project_names[:max_projects]
+
+        typer.echo(f"Found {len(project_names)} projects")
+
+        # ワークフローを初期化
+        codeql_cli = CodeQLCLI(cli_path=settings.codeql_cli_path)
+        db_manager = CodeQLDatabaseManager(
+            cli=codeql_cli,
+            base_dir=settings.effective_codeql_db_dir,
+        )
+        workflow = CodeQLQueryExecutionWorkflow(
+            codeql_cli=codeql_cli,
+            db_manager=db_manager,
+        )
+
+        # バッチ処理を実行
+        stats = workflow.execute_queries_batch(
+            projects=project_names,
+            query_files=query_files,
+            output_base_dir=settings.effective_codeql_output_dir,
+            format=format,
+            threads=threads,
+            ram=ram,
+        )
+
+        # 結果を表示
+        typer.echo("\n=== Batch Execution Summary ===")
+        typer.echo(f"Total: {stats['total']}")
+        typer.echo(f"✓ Success: {stats['success']}")
+        typer.echo(f"✗ Failed: {stats['failed']}")
+
+    finally:
+        db.close()
+
+
+@codeql_app.command("summary")
+def summary(
+    query_id: str = typer.Argument(..., help="クエリID（例: id_10）"),
+    threshold: int | None = typer.Option(None, "--threshold", "-t", help="閾値（この値以上の結果のみ含める）"),
+    output_dir: Path | None = typer.Option(None, "--output-dir", help="出力先ディレクトリ"),
+) -> None:
+    """指定したクエリIDのサマリーJSONを生成する
+
+    クエリディレクトリ内のSARIFファイルから結果を集計し、
+    サマリーJSONファイルを生成します。
+
+    出力先:
+        - 閾値なし: outputs/queries/{query_id}/summary.json
+        - 閾値あり: outputs/queries/{query_id}/limit_{threshold}_summary.json
+
+    Examples:
+        $ mb-scanner codeql summary id_10
+        $ mb-scanner codeql summary id_10 --threshold 10
+        $ mb-scanner codeql summary id_10 -t 10 --output-dir custom/output
+    """
+    # 出力ディレクトリのデフォルト値を適用
+    if output_dir is None:
+        output_dir = settings.effective_codeql_output_dir
+
+    # クエリディレクトリのパスを構築
+    query_dir = output_dir / query_id
+
+    # ディレクトリの存在確認
+    if not query_dir.exists():
+        typer.echo(f"Error: Query directory does not exist: {query_dir}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Generating summary for query: {query_id}")
+    if threshold is not None:
+        typer.echo(f"Threshold: {threshold}")
+    typer.echo(f"Query directory: {query_dir}")
+
+    # 結果を集計
+    analyzer = CodeQLResultAnalyzer()
+    try:
+        results = analyzer.generate_summary_from_directory(query_dir, threshold=threshold)
+    except FileNotFoundError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1) from e
+
+    # ファイル名を決定
+    filename = f"limit_{threshold}_summary.json" if threshold is not None else "summary.json"
+
+    output_path = query_dir / filename
+
+    # サマリーを保存
+    analyzer.save_summary_json(query_id, results, output_path, threshold=threshold)
+
+    # 結果を表示
+    typer.echo(f"✓ Successfully generated summary: {output_path}")
+    typer.echo(f"Total projects: {len(results)}")
+    if results:
+        typer.echo("\nResults:")
+        for project, count in sorted(results.items(), key=lambda x: x[1], reverse=True):
+            typer.echo(f"  - {project}: {count} results")
