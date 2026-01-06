@@ -39,3 +39,33 @@ fix: format
 typecheck:
     @echo "🔍 Running type check with Pyright..."
     uv run pyright
+
+# -----------------------------------------------------------------------------
+# データベース管理 (Database Management) 🗄️
+# -----------------------------------------------------------------------------
+
+# データベースマイグレーションを実行する
+migrate:
+    @echo "🔄 Running database migrations..."
+    uv run mb-scanner migrate
+
+# データベースマイグレーションのドライラン（確認のみ）
+migrate-dry-run:
+    @echo "🔍 Checking pending migrations (dry run)..."
+    uv run mb-scanner migrate --dry-run
+
+# -----------------------------------------------------------------------------
+# ファイル同期 (File Synchronization) 🔄
+# -----------------------------------------------------------------------------
+
+# brain-1サーバへファイルを同期する
+sync-to-brain1:
+    @echo "📤 Syncing files to brain-1..."
+    rsync -av --exclude-from=exclude-list.txt . brain-1:/mnt/data1/tomoya-n/MB-Scanner
+    @echo "✅ Sync completed!"
+
+# brain-2サーバへファイルを同期する
+sync-to-brain2:
+    @echo "📤 Syncing files to brain-2..."
+    rsync -av --exclude-from=exclude-list.txt . brain-2:/mnt/data1/tomoya-n/MB-Scanner
+    @echo "✅ Sync completed!"

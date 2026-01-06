@@ -1,0 +1,21 @@
+# OS固有のファイル
+.DS_Store
+
+# ログファイル
+*.log
+
+# 特定のディレクトリ
+data/
+tmp/
+.venv/
+tests/
+.git/
+.claude/
+AGENTS.md
+CLUADE.md
+ai-guide/
+.ai/
+
+# 設定ファイル
+.env.sample
+.gitignore
