@@ -75,6 +75,13 @@ class Settings(BaseSettings):
         description="CodeQLクエリ実行結果のデフォルト出力フォーマット",
     )
 
+    # 可視化関連設定
+    total_projects_count: int = Field(
+        default=1000,
+        ge=1,
+        description="分析対象の総プロジェクト数（箱ひげ図などで母数を揃えるために使用）",
+    )
+
     @property
     def effective_data_dir(self) -> Path:
         """データディレクトリの有効なパスを返す"""
