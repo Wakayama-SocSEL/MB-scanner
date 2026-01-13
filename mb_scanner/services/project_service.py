@@ -135,3 +135,25 @@ class ProjectService:
         self.db.commit()
         self.db.refresh(new_project)
         return new_project
+
+    def update_js_lines_count(self, project_id: int, js_lines_count: int) -> None:
+        """プロジェクトのJS行数を更新する
+
+        Args:
+            project_id: プロジェクトID
+            js_lines_count: JavaScriptファイルの総行数
+
+        Raises:
+            ValueError: プロジェクトが見つからない場合、または負の値が指定された場合
+        """
+        if js_lines_count < 0:
+            msg = "js_lines_count must be non-negative"
+            raise ValueError(msg)
+
+        project = self.db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            msg = f"Project with id {project_id} not found"
+            raise ValueError(msg)
+
+        project.js_lines_count = js_lines_count
+        self.db.commit()

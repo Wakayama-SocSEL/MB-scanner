@@ -6,6 +6,8 @@
 
 from datetime import datetime
 
+import pytest
+
 from mb_scanner.services.project_service import ProjectService
 
 
@@ -319,3 +321,84 @@ def test_count_projects_empty(project_service: ProjectService) -> None:
 
     # 検証
     assert count == 0
+
+
+def test_update_js_lines_count_success(project_service: ProjectService) -> None:
+    """JS行数の更新（正常系）のテスト
+
+    プロジェクトのJS行数を正常に更新できることを確認します。
+    """
+    # 準備: プロジェクトを作成
+    project = project_service.save_project(
+        full_name="facebook/react",
+        url="https://github.com/facebook/react",
+        stars=250000,
+        language="JavaScript",
+        description="A JavaScript library",
+        last_commit_date=datetime(2025, 10, 1),
+    )
+    assert project.js_lines_count is None
+
+    # 実行: JS行数を更新
+    project_service.update_js_lines_count(project.id, 50000)
+
+    # 検証: 更新されたことを確認
+    updated_project = project_service.get_project_by_full_name("facebook/react")
+    assert updated_project is not None
+    assert updated_project.js_lines_count == 50000
+
+
+def test_update_js_lines_count_zero(project_service: ProjectService) -> None:
+    """JS行数の更新（0行）のテスト
+
+    JSファイルが存在しないプロジェクトで0行を設定できることを確認します。
+    """
+    # 準備: プロジェクトを作成
+    project = project_service.save_project(
+        full_name="python/cpython",
+        url="https://github.com/python/cpython",
+        stars=100000,
+        language="Python",
+        description="Python language",
+        last_commit_date=datetime(2025, 10, 1),
+    )
+
+    # 実行: 0行を設定
+    project_service.update_js_lines_count(project.id, 0)
+
+    # 検証
+    updated_project = project_service.get_project_by_full_name("python/cpython")
+    assert updated_project is not None
+    assert updated_project.js_lines_count == 0
+
+
+def test_update_js_lines_count_nonexistent_project(
+    project_service: ProjectService,
+) -> None:
+    """JS行数の更新（存在しないプロジェクト）のテスト
+
+    存在しないプロジェクトIDを指定した場合、ValueErrorが発生することを確認します。
+    """
+    # 実行と検証
+    with pytest.raises(ValueError, match="Project with id 99999 not found"):
+        project_service.update_js_lines_count(99999, 1000)
+
+
+def test_update_js_lines_count_negative_value(project_service: ProjectService) -> None:
+    """JS行数の更新（負の値）のテスト
+
+    負の値を指定した場合、ValueErrorが発生することを確認します。
+    """
+    # 準備: プロジェクトを作成
+    project = project_service.save_project(
+        full_name="facebook/react",
+        url="https://github.com/facebook/react",
+        stars=250000,
+        language="JavaScript",
+        description="A JavaScript library",
+        last_commit_date=datetime(2025, 10, 1),
+    )
+
+    # 実行と検証
+    with pytest.raises(ValueError, match="js_lines_count must be non-negative"):
+        project_service.update_js_lines_count(project.id, -100)
