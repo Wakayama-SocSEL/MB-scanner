@@ -20,5 +20,6 @@ data/codeql-dbs/
 
 # Environment variables file
 .env
+tmp/
 
 codeql/queries
