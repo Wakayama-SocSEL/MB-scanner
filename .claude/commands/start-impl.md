@@ -6,18 +6,18 @@
 
 ### 1. 作業ディレクトリの準備
 
-- `tmp/`ディレクトリ内に`4桁の連番_機能名`形式でディレクトリを作成します
-  - 例: `tmp/0001_users-migration/`, `tmp/0002_babies-migration/`
+- `.ai/tasks/`ディレクトリ内に`4桁の連番_機能名`形式でディレクトリを作成します
+  - 例: `.ai/tasks/0001_users-migration/`, `.ai/tasks/0002_babies-migration/`
 - 既存の連番ディレクトリを確認し、次の番号を割り当てます
 - 機能名はケバブケース（小文字とハイフン）を使用します
 
 ### 2. 実装開始の許可を得る
 
 - **コードの変更は勝手に実施してはいけません**
-- まず、`tmp/XXXX_機能名/plan.md`に作業のプランニングを作成します
+- まず、`.ai/tasks/XXXX_機能名/plan.md`に作業のプランニングを作成します
 - `plan.md`をユーザーに提示し、実装の許可を得ます
 - 許可が得られるまで、ユーザーと相談しつつプランニングを繰り返します
-- 同時に`tmp/XXXX_機能名/prompt.md`を作成し、ユーザー要望と対応内容を記録します
+- 同時に`.ai/tasks/XXXX_機能名/prompt.md`を作成し、ユーザー要望と対応内容を記録します
 
 ### 3. 作業の実施
 
@@ -29,20 +29,18 @@
 ## 実行方法
 
 ```bash
-# Docker環境の場合
-docker compose exec migrate-awababy bash
+# テストの実行
+pytest
 
 # 型チェック
-uv run ty check src/
+just typecheck
 
-# フォーマット
-uv run ruff format .
+# フォーマット＋自動修正
+just fix
 
-# リントチェック
-uv run ruff check . --fix
-
-# データ検証（CSV比較）
-compare-csv
+# 実行コマンド
+uv run mb-scanner {}
+詳細なコマンドは--helpにて確認可能
 ```
 
 ## ワークフロー
@@ -63,7 +61,7 @@ compare-csv
 9. 🧪 **実装完了ごとに以下を実施:**
    - テストの実施: `pytest`
    - 型チェック: `just typecheck`
-   - フォーマット: `just fix`
+   - フォーマット+自動修正: `just fix`
 10. 📝 **作業完了後に`prompt.md`を更新**
 11. 🎉 **完了報告**
 
@@ -94,9 +92,9 @@ compare-csv
 
 ```bash
 # 既存の連番ディレクトリを確認
-find tmp -maxdepth 1 -type d -name "[0-9][0-9][0-9][0-9]_*" | sort | tail -1
+find .ai/tasks -maxdepth 1 -type d -name "[0-9][0-9][0-9][0-9]_*" | sort | tail -1
 
-# 例: tmp/0001_users-migration が最新の場合
+# 例: .ai/tasks/0001_users-migration が最新の場合
 # 次は 0002 を使用する
 ```
 
