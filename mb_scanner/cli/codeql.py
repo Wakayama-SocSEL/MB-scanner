@@ -3,14 +3,18 @@
 このモジュールでは、CodeQLデータベース作成およびクエリ実行のためのCLIコマンドを提供します。
 """
 
+import json
 from pathlib import Path
+from typing import cast
 
+from joblib import Parallel, delayed
 import typer
 
 from mb_scanner.core.config import settings
 from mb_scanner.db.session import SessionLocal
 from mb_scanner.lib.codeql import CodeQLCLI, CodeQLDatabaseManager
 from mb_scanner.lib.codeql.analyzer import CodeQLResultAnalyzer
+from mb_scanner.lib.codeql.sarif import ExtractionResult, SarifExtractor, extract_code_for_project
 from mb_scanner.lib.github import RepositoryCloner
 from mb_scanner.services.project_service import ProjectService
 from mb_scanner.workflows.codeql_database_creation import CodeQLDatabaseCreationWorkflow
@@ -358,3 +362,171 @@ def summary(
         typer.echo("\nResults:")
         for project, count in sorted(results.items(), key=lambda x: x[1], reverse=True):
             typer.echo(f"  - {project}: {count} results")
+
+
+@codeql_app.command("extract-code")
+def extract_code(
+    query_id: str = typer.Argument(..., help="クエリID（例: id_10）"),
+    project_name: str = typer.Argument(..., help="プロジェクト名（例: facebook-react）"),
+    sarif_path: Path | None = typer.Option(None, "--sarif-path", help="SARIFファイルのパス"),
+    repository_path: Path | None = typer.Option(None, "--repository-path", help="リポジトリのパス"),
+    output: Path | None = typer.Option(None, "--output", help="出力先JSONファイルのパス"),
+) -> None:
+    r"""SARIFファイルから検出されたコードを抽出する
+
+    指定したクエリIDとプロジェクト名に対応するSARIFファイルを解析し、
+    検出された全てのコードスニペットを抽出してJSONファイルに保存します。
+
+    デフォルトでは以下のパスを使用します:
+        - SARIF: outputs/queries/{query_id}/{project_name}.sarif
+        - Repository: data/repositories/{project_name}
+        - Output: outputs/queries/{query_id}/{project_name}_code.json
+
+    Examples:
+        $ mb-scanner codeql extract-code id_10 facebook-react
+        $ mb-scanner codeql extract-code id_10 facebook-react --output custom/path/result.json
+        $ mb-scanner codeql extract-code id_10 facebook-react \
+            --sarif-path custom/sarif.sarif \
+            --repository-path custom/repo \
+            --output custom/output.json
+    """
+    # デフォルトパスの設定
+    if sarif_path is None:
+        sarif_path = settings.effective_codeql_output_dir / query_id / f"{project_name}.sarif"
+
+    if repository_path is None:
+        repository_path = settings.effective_codeql_clone_dir / project_name
+
+    if output is None:
+        output = settings.effective_codeql_output_dir / query_id / f"{project_name}_code.json"
+
+    # パスの存在確認
+    if not sarif_path.exists():
+        typer.echo(f"Error: SARIF file not found: {sarif_path}", err=True)
+        raise typer.Exit(code=1)
+
+    if not repository_path.exists():
+        typer.echo(f"Error: Repository not found: {repository_path}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Extracting code from SARIF: {sarif_path}")
+    typer.echo(f"Repository: {repository_path}")
+    typer.echo(f"Output: {output}")
+
+    try:
+        # SarifExtractorを初期化して実行
+        extractor = SarifExtractor(sarif_path=sarif_path, repository_path=repository_path)
+        result = extractor.extract_all()
+
+        # 出力ディレクトリを作成
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        # JSONファイルに保存
+        with output.open("w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+
+        # 結果を表示
+        typer.echo(f"\n✓ Successfully extracted code from {result['metadata']['total_results']} results")
+        typer.echo(f"  Output file: {output}")
+
+    except FileNotFoundError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1) from e
+    except Exception as e:
+        typer.echo(f"Unexpected error: {e}", err=True)
+        raise typer.Exit(code=1) from e
+
+
+@codeql_app.command("extract-code-batch")
+def extract_code_batch(
+    query_id: str = typer.Argument(..., help="クエリID（例: id_10）"),
+    max_projects: int | None = typer.Option(None, "--max-projects", help="最大プロジェクト数"),
+    threads: int = typer.Option(4, "--threads", "-t", help="使用するスレッド数（-1=全コア使用）"),
+    sarif_dir: Path | None = typer.Option(None, "--sarif-dir", help="SARIFファイルのディレクトリ"),
+    output_dir: Path | None = typer.Option(None, "--output-dir", help="出力先ディレクトリ"),
+) -> None:
+    """複数プロジェクトのSARIFファイルから並列でコードを抽出
+
+    デフォルトではDBに登録された全プロジェクトを処理します。
+
+    Examples:
+        $ mb-scanner codeql extract-code-batch id_10
+        $ mb-scanner codeql extract-code-batch id_10 --max-projects 10
+        $ mb-scanner codeql extract-code-batch id_10 --threads 8
+        $ mb-scanner codeql extract-code-batch id_10 -t -1  # 全コア使用
+        $ mb-scanner codeql extract-code-batch id_10 \
+            --sarif-dir /outputs/queries/detect_strict/id_10 \
+            --output-dir /outputs/extracted_code/detect_strict/id_10
+    """
+    # 出力ディレクトリのデフォルト値を適用
+    if output_dir is None:
+        output_dir = settings.effective_codeql_output_dir
+
+    # SARIFディレクトリの決定: --sarif-dir が指定されている場合はそれを使用、デフォルトは output_dir
+    sarif_base_dir = sarif_dir if sarif_dir is not None else output_dir
+
+    typer.echo("Starting batch code extraction")
+    typer.echo(f"Query ID: {query_id}")
+    typer.echo(f"Max projects: {max_projects or 'unlimited'}")
+    typer.echo(f"Threads: {threads if threads != -1 else 'all cores'}")
+    typer.echo(f"SARIF directory: {sarif_base_dir}")
+    typer.echo(f"Output directory: {output_dir}")
+
+    # データベースセッションを作成
+    db = SessionLocal()
+
+    try:
+        # プロジェクトサービスから全プロジェクトを取得
+        project_service = ProjectService(db)
+        all_projects = project_service.get_all_projects()
+
+        if not all_projects:
+            typer.echo("No projects found in database")
+            return
+
+        # プロジェクト名のリストを作成
+        project_names = [project.full_name for project in all_projects]
+
+        # max_projectsが指定されている場合は制限
+        if max_projects is not None:
+            project_names = project_names[:max_projects]
+
+        typer.echo(f"Found {len(project_names)} projects to process")
+
+        # 並列実行
+        # threads=-1の場合は全コア使用、それ以外は指定された数
+        results_list = cast(
+            list[ExtractionResult],
+            Parallel(n_jobs=threads, verbose=10)(
+                delayed(extract_code_for_project)(
+                    query_id=query_id,
+                    project_name=project,
+                    sarif_base_dir=sarif_base_dir,
+                    repository_base_dir=settings.effective_codeql_clone_dir,
+                    output_base_dir=output_dir,
+                )
+                for project in project_names
+            ),
+        )
+
+        # 結果の集計
+        success_count = sum(1 for r in results_list if r["status"] == "success")
+        skipped_count = sum(1 for r in results_list if r["status"] == "skipped")
+        failed_count = sum(1 for r in results_list if r["status"] == "error")
+
+        # 結果を表示
+        typer.echo("\n=== Batch Extraction Summary ===")
+        typer.echo(f"Total: {len(results_list)}")
+        typer.echo(f"✓ Success: {success_count}")
+        typer.echo(f"⊘ Skipped: {skipped_count}")
+        typer.echo(f"✗ Failed: {failed_count}")
+
+        # エラーが発生したプロジェクトを表示
+        failed_projects = [r for r in results_list if r["status"] == "error"]
+        if failed_projects:
+            typer.echo("\nFailed projects:")
+            for result in failed_projects:
+                typer.echo(f"  - {result['project']}: {result['error']}")
+
+    finally:
+        db.close()
