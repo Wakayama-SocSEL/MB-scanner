@@ -30,6 +30,7 @@ class Project(Base):
         language: 主要言語
         description: プロジェクト説明文
         fetched_at: データ取得日時
+        js_lines_count: JavaScriptファイルの総行数
         topics: 関連するTopicのリスト（リレーションシップ）
     """
 
@@ -43,6 +44,7 @@ class Project(Base):
     language: Mapped[str | None] = mapped_column(String(50), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    js_lines_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # リレーションシップ: 多対多（Project ↔ Topic）
     topics: Mapped[list["Topic"]] = relationship(
