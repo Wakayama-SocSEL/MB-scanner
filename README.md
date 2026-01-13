@@ -38,196 +38,107 @@ MB-Scanner を使用するには、GitHub API トークンが必要です。`.en
 cp .env.sample .env
 ```
 
-`.env` ファイルを開き、以下の設定を行います：
-
-#### 必須設定
+`.env` ファイルを開き、GitHub API トークンを設定します：
 
 ```bash
 # GitHub API Token（必須）
 GITHUB_TOKEN="your_github_token_here"
 ```
 
-GitHub Personal Access Token は以下の手順で取得できます：
-1. GitHub の [Settings > Developer settings > Personal access tokens > Tokens (classic)](https://github.com/settings/tokens) にアクセス
-2. "Generate new token" をクリック
-3. スコープで `public_repo` を選択（公開リポジトリへの読み取りアクセス）
-4. 生成されたトークンを `.env` ファイルの `GITHUB_TOKEN` に設定
+GitHub Personal Access Token は [Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens) から取得できます（`public_repo` スコープが必要）。
 
-#### オプション設定
+その他のオプション設定については `.env.sample` を参照してください。
 
-以下の設定は任意です。必要に応じてコメントを外して設定してください：
+## 基本的な使い方
 
-```bash
-# データディレクトリとDBファイルのパス
-# MB_SCANNER_DATA_DIR="/path/to/your/data/"
-# MB_SCANNER_DB_FILE="/path/to/your/mb_scanner.db"
-
-# ログ設定
-# MB_SCANNER_LOG_LEVEL="INFO"
-# MB_SCANNER_LOG_FILE="/path/to/your/logs/mb_scanner.log"
-# MB_SCANNER_LOG_TO_CONSOLE=true
-
-# GitHub検索のデフォルト条件
-# MB_SCANNER_GITHUB_SEARCH_DEFAULT_LANGUAGE="JavaScript"
-# MB_SCANNER_GITHUB_SEARCH_DEFAULT_MIN_STARS=100
-# MB_SCANNER_GITHUB_SEARCH_DEFAULT_MAX_DAYS_SINCE_COMMIT=365
-
-# CodeQL関連設定
-# MB_SCANNER_CODEQL_CLI_PATH="codeql"
-# MB_SCANNER_CODEQL_DB_BASE_DIR="/path/to/codeql-dbs"
-# MB_SCANNER_CODEQL_CLONE_BASE_DIR="/tmp/mb-scanner-clones"
-# MB_SCANNER_CODEQL_DEFAULT_LANGUAGE="javascript"
-```
-
-## 使い方
-
-### GitHub リポジトリの検索と保存
-
-`mb-scanner search` コマンドを使用して、指定した条件で GitHub リポジトリを検索し、データベースに保存します。
+### リポジトリの検索と保存
 
 ```bash
 # デフォルト設定で実行（JavaScript, 100+ stars, 365日以内の更新）
 mb-scanner search
-
-# または明示的に search コマンドを指定
-mb-scanner search
 ```
-
-### コマンドラインオプション
-
-| オプション | 短縮形 | デフォルト | 説明 |
-|-----------|--------|-----------|------|
-| `--language` | `-l` | `JavaScript` | 検索対象の主要言語 |
-| `--min-stars` | `-s` | `100` | 最小スター数 |
-| `--max-days-since-commit` | `-d` | `365` | 最終コミットからの最大経過日数 |
-| `--max-results` | `-n` | なし | 取得する最大リポジトリ数（指定しない場合は全件） |
-| `--update` | `-u` | `False` | 既存プロジェクトを更新する |
-
-### 使用例
-
-```bash
-# Python リポジトリで 1000+ stars、180日以内の更新、最大50件取得
-mb-scanner search --language Python --min-stars 1000 --max-days-since-commit 180 --max-results 50
-
-# 短縮オプションを使用
-mb-scanner search -l TypeScript -s 500 -d 90 -n 25
-
-# 既存プロジェクトの更新モードで実行
-mb-scanner search -l JavaScript -s 100 -u
-
-# ヘルプの表示
-mb-scanner --help
-mb-scanner search --help
-```
-
-### 実行結果
-
-コマンド実行後、以下の統計情報が表示されます：
-
-```
-検索結果:
-  検索結果総数: 50
-  新規保存: 45
-  更新: 3
-  スキップ: 2
-  失敗: 0
-```
-
-データは `data/mb_scanner.db` (SQLite) に保存されます。
 
 ### CodeQL データベースの作成
 
-保存したリポジトリに対して CodeQL データベースを作成できます。
-
-#### 前提条件
-
-CodeQL CLI のインストールが必要です：
-
-1. [CodeQL CLI のダウンロードページ](https://github.com/github/codeql-cli-binaries/releases) から最新版をダウンロード
-2. 解凍して PATH に追加、または `MB_SCANNER_CODEQL_CLI_PATH` 環境変数で指定
-
 ```bash
-# インストール確認
-codeql --version
-```
-
-#### 単一プロジェクトの DB 作成
-
-特定のプロジェクトに対して CodeQL データベースを作成します。
-
-```bash
-# 基本的な使い方
+# 特定のリポジトリの CodeQL DB を作成
 mb-scanner codeql create-db <owner/repo>
 
 # 例: facebook/react の DB を作成
 mb-scanner codeql create-db facebook/react
-
-# 言語を指定して作成
-mb-scanner codeql create-db facebook/react --language javascript
-
-# 既存の DB を上書き
-mb-scanner codeql create-db facebook/react --force
 ```
 
-#### バッチ処理（全プロジェクトの DB 作成）
+### その他のコマンド
 
-データベース上の全プロジェクトに対して一括で CodeQL データベースを作成します。
+利用可能なコマンドとオプションの詳細については、ヘルプを参照してください：
 
 ```bash
-# すべてのプロジェクトに対して DB を作成
-mb-scanner codeql create-db-batch
+# 全体のヘルプ
+mb-scanner --help
 
-# 最大 10 件のプロジェクトに対して作成
-mb-scanner codeql create-db-batch --max-projects 10
-
-# 言語を指定
-mb-scanner codeql create-db-batch --language javascript
-
-# 既存の DB を上書き
-mb-scanner codeql create-db-batch --force
+# 各コマンドのヘルプ
+mb-scanner search --help
+mb-scanner codeql --help
+mb-scanner github --help
+mb-scanner visualize --help
 ```
 
-#### コマンドラインオプション
-
-**create-db コマンド:**
-
-| オプション | 短縮形 | デフォルト | 説明 |
-|-----------|--------|-----------|------|
-| `--language` | - | `javascript` | 解析言語（javascript, python, など） |
-| `--force` | `-f` | `False` | 既存 DB を上書きする |
-
-**create-db-batch コマンド:**
-
-| オプション | 短縮形 | デフォルト | 説明 |
-|-----------|--------|-----------|------|
-| `--language` | - | `javascript` | 解析言語 |
-| `--max-projects` | - | なし | 最大プロジェクト数（指定しない場合は全件） |
-| `--skip-existing` | - | `True` | 既存 DB をスキップする |
-| `--force` | `-f` | `False` | 既存 DB を上書きする |
-
-#### DB の保存先
-
-作成された CodeQL データベースは以下の場所に保存されます：
+## プロジェクト構造
 
 ```
-data/codeql-dbs/
-├── facebook-react/        # facebook/react の DB
-├── microsoft-typescript/  # microsoft/typescript の DB
-└── ...
-```
+mb_scanner/
+├── cli/                    # CLI コマンド
+│   ├── search.py          # リポジトリ検索コマンド
+│   ├── codeql.py          # CodeQL 関連コマンド
+│   ├── github.py          # GitHub 関連コマンド
+│   ├── visualize.py       # 可視化コマンド
+│   ├── count_lines.py     # 行数カウントコマンド
+│   └── migrate.py         # マイグレーションコマンド
+├── core/                   # 設定・ロギング
+│   ├── config.py          # 環境変数と設定管理
+│   └── logging_config.py  # ログ設定
+├── db/                     # データベース層
+│   ├── base.py            # ベースクラス
+│   ├── session.py         # セッション管理
+│   └── migrations.py      # マイグレーション
+├── lib/                    # 外部サービス連携
+│   ├── codeql/            # CodeQL CLI 連携
+│   │   ├── command.py     # CodeQL コマンド実行
+│   │   ├── database.py    # DB 作成・管理
+│   │   ├── analyzer.py    # クエリ実行と分析
+│   │   └── sarif.py       # SARIF 解析
+│   ├── github/            # GitHub API クライアント
+│   │   ├── client.py      # API クライアント
+│   │   ├── search.py      # リポジトリ検索
+│   │   └── clone.py       # リポジトリクローン
+│   ├── code_counter/      # コード行数カウント
+│   │   └── js_counter.py  # JavaScript 行数カウント
+│   └── visualization/     # データ可視化
+│       ├── scatter_plot.py # 散布図生成
+│       └── boxplot.py     # 箱ひげ図生成
+├── models/                # データモデル
+│   └── project.py         # プロジェクトモデル
+├── services/              # ビジネスロジック
+│   ├── project_service.py         # プロジェクト管理
+│   ├── project_search_service.py  # プロジェクト検索
+│   ├── topic_service.py           # トピック管理
+│   └── visualization_service.py   # 可視化サービス
+├── utils/                 # 共通ユーティリティ
+│   └── cleanup.py         # クリーンアップ処理
+└── workflows/             # 複合処理フロー
+    ├── search_and_store.py            # 検索・保存ワークフロー
+    ├── codeql_database_creation.py   # CodeQL DB 作成ワークフロー
+    └── codeql_query_execution.py     # CodeQL クエリ実行ワークフロー
 
-一時的にクローンされたリポジトリは `/tmp/mb-scanner-clones/` に保存され、DB 作成後に自動的に削除されます。
+data/                       # データ保存ディレクトリ
+├── mb_scanner.db          # SQLite データベース
+├── codeql-dbs/            # CodeQL データベース保存先
+└── repositories/          # クローンしたリポジトリ
 
-#### 実行結果
-
-バッチ処理実行後、以下の統計情報が表示されます：
-
-```
-=== Batch Creation Summary ===
-Total: 50
-✓ Created: 45
-⊘ Skipped: 3
-✗ Failed: 2
+outputs/                    # 実行結果出力ディレクトリ
+├── queries/               # CodeQL クエリ結果 (SARIF)
+├── extracted_code/        # 検出されたコードの抽出結果
+└── plots/                 # 可視化グラフ (PNG)
 ```
 
 ## 開発
@@ -243,29 +154,4 @@ just fix
 
 # 型チェック
 just typecheck
-```
-
-### プロジェクト構造
-
-```
-mb_scanner/
-├── cli/                    # CLI コマンド
-│   ├── __init__.py        # Typer アプリ統合
-│   ├── search.py          # search コマンド
-│   └── codeql.py          # codeql コマンド
-├── core/                   # 設定・ロギング
-├── db/                     # データベース（モデル、セッション）
-├── lib/                    # 外部サービス連携
-│   ├── codeql/            # CodeQL CLI 連携
-│   │   ├── command.py     # CodeQL コマンド実行
-│   │   └── database.py    # DB 管理
-│   └── github/            # GitHub API クライアント
-│       ├── client.py      # API クライアント
-│       ├── clone.py       # リポジトリクローン
-│       └── search.py      # 検索ロジック
-├── services/              # ビジネスロジック
-├── utils/                 # 共通ユーティリティ
-└── workflows/             # 複合処理フロー
-    ├── search_and_store.py          # 検索・保存ワークフロー
-    └── codeql_database_creation.py  # CodeQL DB 作成ワークフロー
 ```
