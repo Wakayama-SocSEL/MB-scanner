@@ -32,6 +32,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "ruff>=0.12.9",
     "pyright>=1.1.390",
+    "joblib-stubs>=1.5.3.0.20251223",
 ]
 
 [tool.ruff]
@@ -150,9 +151,20 @@ exclude_lines = [
 ]
 
 [tool.pyright]
+typeCheckingMode = "strict"
 exclude = [
     ".venv",
     "**/__pycache__",
 ]
 stubPath = "stubs"
 reportMissingTypeStubs = false
+
+# テストディレクトリ専用の設定
+# テストコードではMock、fixture、parametrizeなど型推論が難しいケースが多いため、
+# 以下のチェックを緩和している:
+# - reportPrivateUsage: テストではprivateアクセスが必要な場合がある
+# - reportUnknown*: Mock、fixture等で型が不明になりやすい
+# - reportArgumentType: parametrizeや辞書アンパック時の型不一致を許容
+executionEnvironments = [
+    { root = "tests", reportPrivateUsage = "none", reportUnknownMemberType = "none", reportUnknownArgumentType = "none", reportUnknownVariableType = "none", reportMissingParameterType = "none", reportUnknownParameterType = "none", reportArgumentType = "none", reportUnknownLambdaType = "none" }
+]
