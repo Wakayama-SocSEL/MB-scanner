@@ -9,3 +9,4 @@
 1. [project-overview.md](./project-overview.md) - プロジェクト概要
 2. [db-design.md](./db-design.md) - データベース設計ドキュメント
 3. [testing-guidelines.md](./testing-guidelines.md) - テストガイドライン
+4. [development-setup.md](./development-setup.md) - 開発環境セットアップ
