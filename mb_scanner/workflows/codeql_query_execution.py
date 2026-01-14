@@ -99,7 +99,7 @@ class CodeQLQueryExecutionWorkflow:
                     }
 
             # 3. 各クエリファイルごとにクエリ実行
-            results = []
+            results: list[dict[str, Any]] = []
             safe_project_name = project_full_name.replace("/", "-")
 
             for query_file in query_files:

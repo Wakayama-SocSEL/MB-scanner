@@ -6,6 +6,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -28,7 +29,7 @@ class VisualizationService:
         self.db = db
         self.project_service = ProjectService(db)
 
-    def load_query_results(self, json_path: Path) -> dict:
+    def load_query_results(self, json_path: Path) -> dict[str, Any]:
         """JSONファイルからクエリ結果を読み込む
 
         Args:

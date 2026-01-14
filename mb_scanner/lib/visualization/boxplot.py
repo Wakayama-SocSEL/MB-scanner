@@ -4,6 +4,9 @@
 複数のクエリ結果を横並びで比較できる形式で可視化します。
 """
 
+# pyright: reportUnknownMemberType=false
+# matplotlibの型情報が不完全なため、このファイルでは一部の型チェックを緩和
+
 import json
 from pathlib import Path
 import warnings

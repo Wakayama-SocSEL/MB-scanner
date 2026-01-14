@@ -9,7 +9,7 @@ from datetime import datetime
 import json
 import logging
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 from urllib.parse import unquote
 
 logger = logging.getLogger(__name__)
@@ -88,17 +88,17 @@ class SarifExtractor:
             raise FileNotFoundError(f"SARIF file not found: {self.sarif_path}")
 
         with self.sarif_path.open() as f:
-            sarif_data = json.load(f)
+            sarif_data: dict[str, Any] = json.load(f)
 
-        results = []
-        runs = sarif_data.get("runs", [])
+        results: list[SarifResult] = []
+        runs: list[dict[str, Any]] = sarif_data.get("runs", [])
 
         if not runs:
             logger.warning("No runs found in SARIF file")
             return results
 
         # 最初のrunのresultsを取得
-        sarif_results = runs[0].get("results", [])
+        sarif_results: list[dict[str, Any]] = runs[0].get("results", [])
 
         for idx, result in enumerate(sarif_results):
             # メッセージの取得
@@ -214,7 +214,7 @@ class SarifExtractor:
             logger.error(f"Error extracting code snippet from {file_path}: {e}")
             return f"[Error: {e}]"
 
-    def extract_all(self) -> dict:
+    def extract_all(self) -> dict[str, Any]:
         """全ての結果を抽出してJSON形式で返す
 
         Returns:
@@ -224,7 +224,7 @@ class SarifExtractor:
         results = self.parse_sarif()
 
         # メタデータの生成
-        metadata = {
+        metadata: dict[str, Any] = {
             "sarif_path": str(self.sarif_path),
             "repository_path": str(self.repository_path),
             "total_results": len(results),
@@ -232,7 +232,7 @@ class SarifExtractor:
         }
 
         # 各結果にコードスニペットを追加
-        output_results = []
+        output_results: list[dict[str, Any]] = []
         for result in results:
             code_snippet = self.extract_code_snippet(result)
 
@@ -310,7 +310,7 @@ def extract_code_for_project(
         with output_path.open("w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
 
-        result_count = result["metadata"]["total_results"]
+        result_count: int = result["metadata"]["total_results"]
         logger.info(f"Successfully extracted {result_count} results for {project_name}")
 
         return ExtractionResult(

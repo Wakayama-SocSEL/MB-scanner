@@ -98,7 +98,7 @@ class DatabaseMigrator:
         Raises:
             MigrationError: マイグレーション実行時にエラーが発生した場合
         """
-        results = {}
+        results: dict[str, bool] = {}
 
         # 現在のマイグレーション一覧
         migrations = [

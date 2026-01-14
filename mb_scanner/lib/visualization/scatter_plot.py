@@ -3,6 +3,9 @@
 このモジュールでは、matplotlibを使用して散布図を生成します。
 """
 
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# matplotlib/scipy/numpyの型情報が不完全なため、このファイルでは一部の型チェックを緩和
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt

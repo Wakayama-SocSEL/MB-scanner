@@ -5,7 +5,6 @@
 
 import json
 from pathlib import Path
-from typing import cast
 
 from joblib import Parallel, delayed
 import typer
@@ -26,7 +25,7 @@ codeql_app = typer.Typer(help="CodeQL関連コマンド")
 @codeql_app.command("create-db")
 def create_database(
     project_name: str = typer.Argument(..., help="プロジェクト名（owner/repo形式）"),
-    language: str = typer.Option(
+    language: str | None = typer.Option(
         None,
         help="解析言語（指定しない場合は設定ファイルのデフォルト値を使用）",
     ),
@@ -95,7 +94,7 @@ def create_database(
 
 @codeql_app.command("create-db-batch")
 def create_database_batch(
-    language: str = typer.Option(
+    language: str | None = typer.Option(
         None,
         help="解析言語（指定しない場合は設定ファイルのデフォルト値を使用）",
     ),
@@ -173,7 +172,7 @@ def create_database_batch(
 def query(
     project_name: str = typer.Argument(..., help="プロジェクト名（owner/repo形式）"),
     query_files: list[Path] = typer.Option(..., "--query-files", "-q", help="クエリファイルのパス（複数指定可能）"),
-    format: str = typer.Option(None, "--format", help="出力形式"),
+    format: str | None = typer.Option(None, "--format", help="出力形式"),
     threads: int | None = typer.Option(None, "--threads", help="使用するスレッド数"),
     ram: int | None = typer.Option(None, "--ram", help="使用するRAM（MB）"),
 ) -> None:
@@ -230,7 +229,7 @@ def query(
 def query_batch(
     query_files: list[Path] = typer.Option(..., "--query-files", "-q", help="クエリファイルのパス（複数指定可能）"),
     max_projects: int | None = typer.Option(None, "--max-projects", help="最大プロジェクト数"),
-    format: str = typer.Option(None, "--format", help="出力形式"),
+    format: str | None = typer.Option(None, "--format", help="出力形式"),
     threads: int | None = typer.Option(None, "--threads", help="使用するスレッド数"),
     ram: int | None = typer.Option(None, "--ram", help="使用するRAM（MB）"),
 ) -> None:
@@ -495,18 +494,15 @@ def extract_code_batch(
 
         # 並列実行
         # threads=-1の場合は全コア使用、それ以外は指定された数
-        results_list = cast(
-            list[ExtractionResult],
-            Parallel(n_jobs=threads, verbose=10)(
-                delayed(extract_code_for_project)(
-                    query_id=query_id,
-                    project_name=project,
-                    sarif_base_dir=sarif_base_dir,
-                    repository_base_dir=settings.effective_codeql_clone_dir,
-                    output_base_dir=output_dir,
-                )
-                for project in project_names
-            ),
+        results_list: list[ExtractionResult] = Parallel(n_jobs=threads, verbose=10)(
+            delayed(extract_code_for_project)(
+                query_id=query_id,
+                project_name=project,
+                sarif_base_dir=sarif_base_dir,
+                repository_base_dir=settings.effective_codeql_clone_dir,
+                output_base_dir=output_dir,
+            )
+            for project in project_names
         )
 
         # 結果の集計

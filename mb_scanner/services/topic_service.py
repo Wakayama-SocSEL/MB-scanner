@@ -61,7 +61,7 @@ class TopicService:
         Returns:
             list[Topic]: Topicオブジェクトのリスト
         """
-        topics = []
+        topics: list[Topic] = []
         for name in topic_names:
             # 既存のtopicを検索
             topic = self.get_topic_by_name(name)

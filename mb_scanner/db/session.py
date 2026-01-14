@@ -54,7 +54,7 @@ def init_db() -> None:
         >>> init_db()  # 全てのテーブルが作成される
     """
     # 全てのモデルをインポートして、Base.metadataに登録する必要があります
-    from mb_scanner.models import project  # noqa: F401, PLC0415
+    from mb_scanner.models import project  # noqa: F401, PLC0415  # pyright: ignore[reportUnusedImport]
 
     # テーブル作成
     Base.metadata.create_all(bind=engine)

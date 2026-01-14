@@ -6,7 +6,6 @@
 import logging
 from pathlib import Path
 import shutil
-from typing import cast
 
 from joblib import Parallel, delayed
 
@@ -207,19 +206,16 @@ class CodeQLDatabaseManager:
             base_output_dir = Path("outputs/queries")
 
         # 並列実行
-        result_paths = cast(
-            list[Path],
-            Parallel(n_jobs=n_jobs)(
-                delayed(self.analyze_database)(
-                    project_name,
-                    output_dir=base_output_dir / project_name.replace("/", "-"),
-                    query_files=query_files,
-                    format=format,
-                    threads=threads_per_job,
-                    ram=ram_per_job,
-                )
-                for project_name in project_full_names
-            ),
+        result_paths: list[Path] = Parallel(n_jobs=n_jobs)(
+            delayed(self.analyze_database)(
+                project_name,
+                output_dir=base_output_dir / project_name.replace("/", "-"),
+                query_files=query_files,
+                format=format,
+                threads=threads_per_job,
+                ram=ram_per_job,
+            )
+            for project_name in project_full_names
         )
 
         # 辞書形式で返す

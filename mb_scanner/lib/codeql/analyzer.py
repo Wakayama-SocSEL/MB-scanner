@@ -86,7 +86,7 @@ class CodeQLResultAnalyzer:
             >>> filtered = analyzer.filter_projects_by_threshold(results, threshold=10)
         """
         analyzer = CodeQLResultAnalyzer()
-        filtered = []
+        filtered: list[str] = []
 
         for project_name, sarif_path in results.items():
             count = analyzer.count_results(sarif_path)
