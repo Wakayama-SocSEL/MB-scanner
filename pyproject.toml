@@ -88,6 +88,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]  # 未使用import (re-exportの場合)
+"mb_scanner/models/sarif.py" = ["N815"]  # SARIF標準フォーマットのcamelCaseを維持
 "mb_scanner/cli/*.py" = ["B008"]  # typer.Optionをデフォルト引数で使用 (Typerの正しい使い方)
 
 [tool.ruff.lint.isort]
