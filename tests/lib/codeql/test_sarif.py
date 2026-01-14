@@ -6,7 +6,8 @@ import shutil
 
 import pytest
 
-from mb_scanner.lib.codeql.sarif import SarifExtractor, SarifResult, extract_code_for_project
+from mb_scanner.lib.codeql.sarif import SarifExtractor, extract_code_for_project
+from mb_scanner.models import SarifFinding
 
 # フィクスチャのパス
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "fixtures" / "sarif"
@@ -15,12 +16,12 @@ EMPTY_SARIF = FIXTURES_DIR / "empty_results.sarif"
 SAMPLE_REPO = FIXTURES_DIR / "repository"
 
 
-class TestSarifResult:
-    """SarifResult データクラスのテスト"""
+class TestSarifFinding:
+    """SarifFinding Pydanticモデルのテスト"""
 
-    def test_sarif_result_dataclass(self):
-        """SarifResultのインスタンス化とフィールドアクセスをテスト"""
-        result = SarifResult(
+    def test_sarif_finding_model(self):
+        """SarifFindingのインスタンス化とフィールドアクセスをテスト"""
+        result = SarifFinding(
             id=0,
             file_path="src/example.js",
             start_line=10,
@@ -40,9 +41,9 @@ class TestSarifResult:
         assert result.message == "Test message"
         assert result.severity == "warning"
 
-    def test_sarif_result_with_none_columns(self):
+    def test_sarif_finding_with_none_columns(self):
         """列情報がNoneの場合のテスト"""
-        result = SarifResult(
+        result = SarifFinding(
             id=1,
             file_path="src/test.js",
             start_line=1,
@@ -139,7 +140,7 @@ class TestSarifExtractor:
         """複数行のコードスニペット抽出をテスト"""
         extractor = SarifExtractor(sarif_path=SAMPLE_SARIF, repository_path=SAMPLE_REPO)
 
-        result = SarifResult(
+        result = SarifFinding(
             id=0,
             file_path="src/example.js",
             start_line=5,
@@ -164,7 +165,7 @@ class TestSarifExtractor:
         """単一行のコードスニペット抽出をテスト"""
         extractor = SarifExtractor(sarif_path=SAMPLE_SARIF, repository_path=SAMPLE_REPO)
 
-        result = SarifResult(
+        result = SarifFinding(
             id=0,
             file_path="src/example.js",
             start_line=2,
@@ -183,7 +184,7 @@ class TestSarifExtractor:
         """列情報がある場合のコードスニペット抽出をテスト"""
         extractor = SarifExtractor(sarif_path=SAMPLE_SARIF, repository_path=SAMPLE_REPO)
 
-        result = SarifResult(
+        result = SarifFinding(
             id=0,
             file_path="src/utils.js",
             start_line=1,
@@ -208,7 +209,7 @@ class TestSarifExtractor:
         """存在しないファイルの処理をテスト"""
         extractor = SarifExtractor(sarif_path=SAMPLE_SARIF, repository_path=SAMPLE_REPO)
 
-        result = SarifResult(
+        result = SarifFinding(
             id=0,
             file_path="src/nonexistent.js",
             start_line=1,
@@ -227,7 +228,7 @@ class TestSarifExtractor:
         """行番号が範囲外の場合の処理をテスト"""
         extractor = SarifExtractor(sarif_path=SAMPLE_SARIF, repository_path=SAMPLE_REPO)
 
-        result = SarifResult(
+        result = SarifFinding(
             id=0,
             file_path="src/example.js",
             start_line=100,
@@ -251,8 +252,10 @@ class TestSarifExtractor:
             "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
             "runs": [
                 {
+                    "tool": {"driver": {"name": "CodeQL"}},
                     "results": [
                         {
+                            "ruleId": "test/rule",
                             "message": {"text": "Test detection"},
                             "level": "warning",
                             "locations": [
@@ -266,7 +269,7 @@ class TestSarifExtractor:
                                 }
                             ],
                         }
-                    ]
+                    ],
                 }
             ],
         }
@@ -296,7 +299,7 @@ class TestSarifExtractor:
         ]
 
         for path in build_paths:
-            result = SarifResult(
+            result = SarifFinding(
                 id=0,
                 file_path=path,
                 start_line=1,
@@ -316,32 +319,28 @@ class TestSarifExtractor:
 
         result = extractor.extract_all()
 
-        # メタデータの検証
-        assert "metadata" in result
-        metadata = result["metadata"]
-        assert "sarif_path" in metadata
-        assert "repository_path" in metadata
-        assert "total_results" in metadata
-        assert "extraction_date" in metadata
-        assert metadata["total_results"] == 4
+        # メタデータの検証（CodeExtractionOutputのPydanticモデル）
+        assert result.metadata is not None
+        assert result.metadata.sarif_path is not None
+        assert result.metadata.repository_path is not None
+        assert result.metadata.total_results == 4
+        assert result.metadata.extraction_date is not None
 
         # 結果の検証
-        assert "results" in result
-        results = result["results"]
-        assert len(results) == 4
+        assert len(result.results) == 4
 
         # 各結果にcode_snippetが含まれることを確認
-        for res in results:
-            assert "id" in res
-            assert "file_path" in res
-            assert "start_line" in res
-            assert "end_line" in res
-            assert "message" in res
-            assert "severity" in res
-            assert "code_snippet" in res
+        for res in result.results:
+            assert res.id is not None
+            assert res.file_path is not None
+            assert res.start_line is not None
+            assert res.end_line is not None
+            assert res.message is not None
+            assert res.severity is not None
+            assert res.code_snippet is not None
 
         # 最初の結果のコードスニペットを検証
-        assert "function testFunction()" in results[0]["code_snippet"]
+        assert "function testFunction()" in result.results[0].code_snippet
 
     def test_extract_all_empty_results(self):
         """空の結果に対するextract_allのテスト"""
@@ -349,27 +348,25 @@ class TestSarifExtractor:
 
         result = extractor.extract_all()
 
-        assert result["metadata"]["total_results"] == 0
-        assert len(result["results"]) == 0
+        assert result.metadata.total_results == 0
+        assert len(result.results) == 0
 
     def test_metadata_generation(self):
         """メタデータの正確性をテスト"""
         extractor = SarifExtractor(sarif_path=SAMPLE_SARIF, repository_path=SAMPLE_REPO)
 
         result = extractor.extract_all()
-        metadata = result["metadata"]
+        metadata = result.metadata
 
         # パスの検証
-        assert str(SAMPLE_SARIF) in metadata["sarif_path"]
-        assert str(SAMPLE_REPO) in metadata["repository_path"]
+        assert str(SAMPLE_SARIF) in metadata.sarif_path
+        assert str(SAMPLE_REPO) in metadata.repository_path
 
         # 総結果数の検証
-        assert metadata["total_results"] == 4
+        assert metadata.total_results == 4
 
-        # タイムスタンプの形式検証
-        assert "extraction_date" in metadata
-        # ISO 8601形式かどうかを簡易チェック
-        assert "T" in metadata["extraction_date"]
+        # タイムスタンプの検証（datetimeオブジェクト）
+        assert metadata.extraction_date is not None
 
 
 class TestExtractCodeForProject:
@@ -406,15 +403,15 @@ class TestExtractCodeForProject:
             output_base_dir=output_dir,
         )
 
-        # 結果の検証
-        assert result["status"] == "success"
-        assert result["project"] == project_name
-        assert result["output_path"] is not None
-        assert result["result_count"] == 4
-        assert result["error"] is None
+        # 結果の検証（Pydanticモデルなのでドット記法）
+        assert result.status == "success"
+        assert result.project == project_name
+        assert result.output_path is not None
+        assert result.result_count == 4
+        assert result.error is None
 
         # 出力ファイルが作成されたことを確認
-        output_file = Path(result["output_path"])
+        output_file = Path(result.output_path)
         assert output_file.exists()
 
         # 出力ファイルの内容を確認
@@ -442,13 +439,13 @@ class TestExtractCodeForProject:
             output_base_dir=tmp_path / "output",
         )
 
-        # 結果の検証
-        assert result["status"] == "skipped"
-        assert result["project"] == project_name
-        assert result["output_path"] is None
-        assert result["result_count"] is None
-        assert result["error"] is not None
-        assert "SARIF file not found" in result["error"]
+        # 結果の検証（Pydanticモデルなのでドット記法）
+        assert result.status == "skipped"
+        assert result.project == project_name
+        assert result.output_path is None
+        assert result.result_count is None
+        assert result.error is not None
+        assert "SARIF file not found" in result.error
 
     def test_extract_code_for_project_repository_not_found(self, tmp_path):
         """リポジトリが存在しない場合のテスト"""
@@ -470,13 +467,13 @@ class TestExtractCodeForProject:
             output_base_dir=tmp_path / "output",
         )
 
-        # 結果の検証
-        assert result["status"] == "skipped"
-        assert result["project"] == project_name
-        assert result["output_path"] is None
-        assert result["result_count"] is None
-        assert result["error"] is not None
-        assert "Repository not found" in result["error"]
+        # 結果の検証（Pydanticモデルなのでドット記法）
+        assert result.status == "skipped"
+        assert result.project == project_name
+        assert result.output_path is None
+        assert result.result_count is None
+        assert result.error is not None
+        assert "Repository not found" in result.error
 
     def test_extract_code_for_project_creates_output_directory(self, tmp_path):
         """出力ディレクトリが自動的に作成されることを確認"""
@@ -505,11 +502,11 @@ class TestExtractCodeForProject:
             output_base_dir=output_dir,
         )
 
-        # 結果の検証
-        assert result["status"] == "success"
+        # 結果の検証（Pydanticモデルなのでドット記法）
+        assert result.status == "success"
 
         # 出力ディレクトリが作成されたことを確認
-        assert result["output_path"] is not None
-        output_file = Path(result["output_path"])
+        assert result.output_path is not None
+        output_file = Path(result.output_path)
         assert output_file.parent.exists()
         assert output_file.exists()

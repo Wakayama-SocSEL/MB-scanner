@@ -3,7 +3,6 @@
 このモジュールでは、CodeQLデータベース作成およびクエリ実行のためのCLIコマンドを提供します。
 """
 
-import json
 from pathlib import Path
 
 from joblib import Parallel, delayed
@@ -13,8 +12,9 @@ from mb_scanner.core.config import settings
 from mb_scanner.db.session import SessionLocal
 from mb_scanner.lib.codeql import CodeQLCLI, CodeQLDatabaseManager
 from mb_scanner.lib.codeql.analyzer import CodeQLResultAnalyzer
-from mb_scanner.lib.codeql.sarif import ExtractionResult, SarifExtractor, extract_code_for_project
+from mb_scanner.lib.codeql.sarif import SarifExtractor, extract_code_for_project
 from mb_scanner.lib.github import RepositoryCloner
+from mb_scanner.models import CodeExtractionJobResult
 from mb_scanner.services.project_service import ProjectService
 from mb_scanner.workflows.codeql_database_creation import CodeQLDatabaseCreationWorkflow
 from mb_scanner.workflows.codeql_query_execution import CodeQLQueryExecutionWorkflow
@@ -80,12 +80,12 @@ def create_database(
 
         # 結果を表示
         if result["status"] == "created":
-            typer.echo(f"✓ Successfully created database: {result['db_path']}")
+            typer.echo(f"✓ Successfully created database: {result.get('db_path')}")
         elif result["status"] == "skipped":
-            typer.echo(f"⊘ Database already exists: {result['db_path']}")
+            typer.echo(f"⊘ Database already exists: {result.get('db_path')}")
             typer.echo("  Use --force to overwrite")
         elif result["status"] == "error":
-            typer.echo(f"✗ Error: {result['error']}", err=True)
+            typer.echo(f"✗ Error: {result.get('error')}", err=True)
             raise typer.Exit(code=1)
 
     finally:
@@ -415,17 +415,17 @@ def extract_code(
     try:
         # SarifExtractorを初期化して実行
         extractor = SarifExtractor(sarif_path=sarif_path, repository_path=repository_path)
-        result = extractor.extract_all()
+        extraction_output = extractor.extract_all()
 
         # 出力ディレクトリを作成
         output.parent.mkdir(parents=True, exist_ok=True)
 
-        # JSONファイルに保存
+        # JSONファイルに保存（Pydanticのmodel_dump_jsonを使用）
         with output.open("w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
+            f.write(extraction_output.model_dump_json(indent=2))
 
         # 結果を表示
-        typer.echo(f"\n✓ Successfully extracted code from {result['metadata']['total_results']} results")
+        typer.echo(f"\n✓ Successfully extracted code from {extraction_output.metadata.total_results} results")
         typer.echo(f"  Output file: {output}")
 
     except FileNotFoundError as e:
@@ -494,7 +494,7 @@ def extract_code_batch(
 
         # 並列実行
         # threads=-1の場合は全コア使用、それ以外は指定された数
-        results_list: list[ExtractionResult] = Parallel(n_jobs=threads, verbose=10)(
+        results_list: list[CodeExtractionJobResult] = Parallel(n_jobs=threads, verbose=10)(
             delayed(extract_code_for_project)(
                 query_id=query_id,
                 project_name=project,
@@ -506,9 +506,9 @@ def extract_code_batch(
         )
 
         # 結果の集計
-        success_count = sum(1 for r in results_list if r["status"] == "success")
-        skipped_count = sum(1 for r in results_list if r["status"] == "skipped")
-        failed_count = sum(1 for r in results_list if r["status"] == "error")
+        success_count = sum(1 for r in results_list if r.status == "success")
+        skipped_count = sum(1 for r in results_list if r.status == "skipped")
+        failed_count = sum(1 for r in results_list if r.status == "error")
 
         # 結果を表示
         typer.echo("\n=== Batch Extraction Summary ===")
@@ -518,11 +518,11 @@ def extract_code_batch(
         typer.echo(f"✗ Failed: {failed_count}")
 
         # エラーが発生したプロジェクトを表示
-        failed_projects = [r for r in results_list if r["status"] == "error"]
+        failed_projects = [r for r in results_list if r.status == "error"]
         if failed_projects:
             typer.echo("\nFailed projects:")
             for result in failed_projects:
-                typer.echo(f"  - {result['project']}: {result['error']}")
+                typer.echo(f"  - {result.project}: {result.error}")
 
     finally:
         db.close()

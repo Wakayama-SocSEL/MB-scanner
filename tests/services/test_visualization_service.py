@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 import json
 from pathlib import Path
 
+from pydantic import ValidationError
 import pytest
 from sqlalchemy.orm import Session
 
@@ -124,11 +125,12 @@ class TestLoadQueryResults:
         """正常なJSONファイルの読み込みテスト"""
         result = visualization_service.load_query_results(sample_json_path)
 
-        assert result["query_id"] == "id_test_001"
-        assert result["total_projects"] == 5
-        assert len(result["results"]) == 5
-        assert result["results"]["test/repo1"] == 10
-        assert result["results"]["test/repo2"] == 25
+        # QuerySummaryのPydanticモデルとして検証
+        assert result.query_id == "id_test_001"
+        assert result.total_projects == 5
+        assert len(result.results) == 5
+        assert result.results["test/repo1"] == 10
+        assert result.results["test/repo2"] == 25
 
     def test_load_query_results_file_not_found(self, visualization_service: VisualizationService) -> None:
         """存在しないファイルのエラー処理テスト"""
@@ -142,7 +144,7 @@ class TestLoadQueryResults:
         invalid_json_file = tmp_path / "invalid.json"
         invalid_json_file.write_text("{invalid json content")
 
-        with pytest.raises(json.JSONDecodeError):
+        with pytest.raises(ValidationError):
             visualization_service.load_query_results(invalid_json_file)
 
 

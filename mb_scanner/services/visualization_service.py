@@ -4,12 +4,11 @@
 可視化に必要なデータを提供します。
 """
 
-import json
 from pathlib import Path
-from typing import Any
 
 from sqlalchemy.orm import Session
 
+from mb_scanner.models import QuerySummary
 from mb_scanner.services.project_service import ProjectService
 
 
@@ -29,25 +28,25 @@ class VisualizationService:
         self.db = db
         self.project_service = ProjectService(db)
 
-    def load_query_results(self, json_path: Path) -> dict[str, Any]:
+    def load_query_results(self, json_path: Path) -> QuerySummary:
         """JSONファイルからクエリ結果を読み込む
 
         Args:
             json_path: クエリ結果のJSONファイルパス
 
         Returns:
-            dict: クエリ結果の辞書
+            QuerySummary: クエリ結果のPydanticモデル
 
         Raises:
             FileNotFoundError: ファイルが存在しない場合
-            json.JSONDecodeError: JSONのパースに失敗した場合
+            pydantic.ValidationError: JSONのパースに失敗した場合
         """
         if not json_path.exists():
             msg = f"File not found: {json_path}"
             raise FileNotFoundError(msg)
 
-        with json_path.open() as f:
-            return json.load(f)
+        with json_path.open("rb") as f:
+            return QuerySummary.model_validate_json(f.read())
 
     def get_scatter_data(self, json_path: Path) -> list[tuple[int, int, str]]:
         """散布図用のデータを取得する
@@ -63,13 +62,12 @@ class VisualizationService:
             js_lines_countがNullのプロジェクトやDBに存在しないプロジェクトはスキップされます。
         """
         # JSONファイルからクエリ結果を読み込む
-        query_results = self.load_query_results(json_path)
-        results_dict = query_results.get("results", {})
+        query_summary = self.load_query_results(json_path)
 
         scatter_data: list[tuple[int, int, str]] = []
 
         # 各プロジェクトの結果を処理
-        for full_name, detection_count in results_dict.items():
+        for full_name, detection_count in query_summary.results.items():
             # データベースからプロジェクトを取得
             project = self.project_service.get_project_by_full_name(full_name)
 

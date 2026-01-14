@@ -4,58 +4,21 @@ CodeQLのSARIF出力ファイルを解析し、検出されたコードの位置
 実際のリポジトリからコードスニペットを抽出する機能を提供します。
 """
 
-from dataclasses import asdict, dataclass
 from datetime import datetime
-import json
 import logging
 from pathlib import Path
-from typing import Any, TypedDict
 from urllib.parse import unquote
 
+from mb_scanner.models import (
+    CodeExtractionItem,
+    CodeExtractionJobResult,
+    CodeExtractionMetadata,
+    CodeExtractionOutput,
+    SarifFinding,
+    SarifReport,
+)
+
 logger = logging.getLogger(__name__)
-
-
-class ExtractionResult(TypedDict):
-    """コード抽出結果を表す型定義
-
-    Attributes:
-        status: 処理ステータス ("success" | "error" | "skipped")
-        project: プロジェクト名
-        output_path: 出力ファイルパス（成功時）
-        result_count: 抽出したコード数（成功時）
-        error: エラーメッセージ（エラー時）
-    """
-
-    status: str
-    project: str
-    output_path: str | None
-    result_count: int | None
-    error: str | None
-
-
-@dataclass
-class SarifResult:
-    """SARIF検出結果を表すデータクラス
-
-    Attributes:
-        id: 結果のID（0から始まる連番）
-        file_path: ファイルパス（リポジトリルートからの相対パス）
-        start_line: 開始行番号
-        end_line: 終了行番号
-        start_column: 開始列番号（存在しない場合はNone）
-        end_column: 終了列番号（存在しない場合はNone）
-        message: 検出メッセージ
-        severity: 深刻度（warning, error, noteなど）
-    """
-
-    id: int
-    file_path: str
-    start_line: int
-    end_line: int
-    start_column: int | None
-    end_column: int | None
-    message: str
-    severity: str
 
 
 class SarifExtractor:
@@ -74,69 +37,68 @@ class SarifExtractor:
         self.sarif_path = sarif_path
         self.repository_path = repository_path
 
-    def parse_sarif(self) -> list[SarifResult]:
+    def parse_sarif(self) -> list[SarifFinding]:
         """SARIFファイルを解析して結果リストを取得
 
         Returns:
-            SarifResultのリスト
+            SarifFindingのリスト
 
         Raises:
             FileNotFoundError: SARIFファイルが存在しない場合
-            json.JSONDecodeError: SARIFファイルが不正なJSON形式の場合
+            pydantic.ValidationError: SARIFファイルが不正な形式の場合
         """
         if not self.sarif_path.exists():
             raise FileNotFoundError(f"SARIF file not found: {self.sarif_path}")
 
-        with self.sarif_path.open() as f:
-            sarif_data: dict[str, Any] = json.load(f)
+        # Pydanticモデルを使用してSARIFファイルを読み込み
+        with self.sarif_path.open("rb") as f:
+            sarif_data = SarifReport.model_validate_json(f.read())
 
-        results: list[SarifResult] = []
-        runs: list[dict[str, Any]] = sarif_data.get("runs", [])
+        results: list[SarifFinding] = []
 
-        if not runs:
+        if not sarif_data.runs:
             logger.warning("No runs found in SARIF file")
             return results
 
         # 最初のrunのresultsを取得
-        sarif_results: list[dict[str, Any]] = runs[0].get("results", [])
+        sarif_results = sarif_data.runs[0].results
 
         for idx, result in enumerate(sarif_results):
             # メッセージの取得
-            message_text = result.get("message", {}).get("text", "No message")
+            message_text = result.message.text
 
             # 深刻度の取得
-            severity = result.get("level", "warning")
+            severity = result.level or "warning"
 
             # 位置情報の取得
-            locations = result.get("locations", [])
-            if not locations:
+            if not result.locations:
                 logger.warning(f"Result {idx} has no locations, skipping")
                 continue
 
-            physical_location = locations[0].get("physicalLocation", {})
-            artifact_location = physical_location.get("artifactLocation", {})
-            region = physical_location.get("region", {})
+            physical_location = result.locations[0].physicalLocation
+            artifact_location = physical_location.artifactLocation
+            region = physical_location.region
 
             # ファイルパスの取得
-            file_uri = artifact_location.get("uri", "")
+            file_uri = artifact_location.uri
             # URLエンコードされている場合はデコード
             file_uri = unquote(file_uri)
 
             # 行・列情報の取得
-            start_line = region.get("startLine")
-            end_line = region.get("endLine")
-            start_column = region.get("startColumn")
-            end_column = region.get("endColumn")
-
-            if start_line is None:
-                logger.warning(f"Result {idx} has no startLine, skipping")
+            if region is None:
+                logger.warning(f"Result {idx} has no region, skipping")
                 continue
+
+            start_line = region.startLine
+            end_line = region.endLine
+            start_column = region.startColumn
+            end_column = region.endColumn
 
             # endLineが省略されている場合はstartLineと同じ行とみなす（SARIF仕様）
             if end_line is None:
                 end_line = start_line
 
-            sarif_result = SarifResult(
+            sarif_finding = SarifFinding(
                 id=idx,
                 file_path=file_uri,
                 start_line=start_line,
@@ -147,15 +109,15 @@ class SarifExtractor:
                 severity=severity,
             )
 
-            results.append(sarif_result)
+            results.append(sarif_finding)
 
         return results
 
-    def extract_code_snippet(self, result: SarifResult) -> str:
+    def extract_code_snippet(self, result: SarifFinding) -> str:
         """位置情報から実際のコードスニペットを抽出
 
         Args:
-            result: SarifResult オブジェクト
+            result: SarifFinding オブジェクト
 
         Returns:
             コードスニペット（複数行の場合は改行で結合）
@@ -214,34 +176,43 @@ class SarifExtractor:
             logger.error(f"Error extracting code snippet from {file_path}: {e}")
             return f"[Error: {e}]"
 
-    def extract_all(self) -> dict[str, Any]:
-        """全ての結果を抽出してJSON形式で返す
+    def extract_all(self) -> CodeExtractionOutput:
+        """全ての結果を抽出してCodeExtractionOutputで返す
 
         Returns:
-            メタデータと結果を含む辞書
+            CodeExtractionOutput: メタデータと結果を含むPydanticモデル
         """
         # SARIFファイルを解析
         results = self.parse_sarif()
 
         # メタデータの生成
-        metadata: dict[str, Any] = {
-            "sarif_path": str(self.sarif_path),
-            "repository_path": str(self.repository_path),
-            "total_results": len(results),
-            "extraction_date": datetime.now().isoformat(),
-        }
+        metadata = CodeExtractionMetadata(
+            sarif_path=str(self.sarif_path),
+            repository_path=str(self.repository_path),
+            total_results=len(results),
+            extraction_date=datetime.now(),
+        )
 
         # 各結果にコードスニペットを追加
-        output_results: list[dict[str, Any]] = []
+        output_results: list[CodeExtractionItem] = []
         for result in results:
             code_snippet = self.extract_code_snippet(result)
 
-            result_dict = asdict(result)
-            result_dict["code_snippet"] = code_snippet
+            item = CodeExtractionItem(
+                id=result.id,
+                file_path=result.file_path,
+                start_line=result.start_line,
+                end_line=result.end_line,
+                start_column=result.start_column,
+                end_column=result.end_column,
+                message=result.message,
+                severity=result.severity,
+                code_snippet=code_snippet,
+            )
 
-            output_results.append(result_dict)
+            output_results.append(item)
 
-        return {"metadata": metadata, "results": output_results}
+        return CodeExtractionOutput(metadata=metadata, results=output_results)
 
 
 def extract_code_for_project(
@@ -250,7 +221,7 @@ def extract_code_for_project(
     sarif_base_dir: Path,
     repository_base_dir: Path,
     output_base_dir: Path,
-) -> ExtractionResult:
+) -> CodeExtractionJobResult:
     """単一プロジェクトのコード抽出を実行（並列処理用）
 
     Args:
@@ -261,7 +232,7 @@ def extract_code_for_project(
         output_base_dir: 出力先ベースディレクトリ
 
     Returns:
-        ExtractionResult: 処理結果
+        CodeExtractionJobResult: 処理結果
             - status: "success" | "error" | "skipped"
             - project: プロジェクト名
             - output_path: 出力ファイルパス（成功時）
@@ -280,7 +251,7 @@ def extract_code_for_project(
         # SARIFファイルの存在確認
         if not sarif_path.exists():
             logger.warning(f"SARIF file not found for {project_name}: {sarif_path}")
-            return ExtractionResult(
+            return CodeExtractionJobResult(
                 status="skipped",
                 project=project_name,
                 output_path=None,
@@ -291,7 +262,7 @@ def extract_code_for_project(
         # リポジトリの存在確認
         if not repository_path.exists():
             logger.warning(f"Repository not found for {project_name}: {repository_path}")
-            return ExtractionResult(
+            return CodeExtractionJobResult(
                 status="skipped",
                 project=project_name,
                 output_path=None,
@@ -301,19 +272,19 @@ def extract_code_for_project(
 
         # コード抽出を実行
         extractor = SarifExtractor(sarif_path=sarif_path, repository_path=repository_path)
-        result = extractor.extract_all()
+        extraction_output = extractor.extract_all()
 
         # 出力ディレクトリを作成
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # JSONファイルに保存
+        # JSONファイルに保存（Pydanticのmodel_dump_jsonを使用）
         with output_path.open("w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
+            f.write(extraction_output.model_dump_json(indent=2))
 
-        result_count: int = result["metadata"]["total_results"]
+        result_count = extraction_output.metadata.total_results
         logger.info(f"Successfully extracted {result_count} results for {project_name}")
 
-        return ExtractionResult(
+        return CodeExtractionJobResult(
             status="success",
             project=project_name,
             output_path=str(output_path),
@@ -323,7 +294,7 @@ def extract_code_for_project(
 
     except Exception as e:
         logger.error(f"Error extracting code for {project_name}: {e}")
-        return ExtractionResult(
+        return CodeExtractionJobResult(
             status="error",
             project=project_name,
             output_path=None,
