@@ -10,3 +10,4 @@
 2. [db-design.md](./db-design.md) - データベース設計ドキュメント
 3. [testing-guidelines.md](./testing-guidelines.md) - テストガイドライン
 4. [development-setup.md](./development-setup.md) - 開発環境セットアップ
+5. [coding-guidelines.md](./coding-guidelines.md) - コーディングガイドライン（型定義、ファイル形式）

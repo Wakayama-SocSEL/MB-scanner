@@ -30,7 +30,7 @@
 
 ```bash
 # テストの実行
-pytest
+uv run pytest
 
 # 型チェック
 just typecheck
