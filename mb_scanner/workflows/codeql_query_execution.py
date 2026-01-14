@@ -5,13 +5,49 @@
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Literal, TypedDict
 
 from mb_scanner.lib.codeql.analyzer import CodeQLResultAnalyzer
 from mb_scanner.lib.codeql.command import CodeQLCLI
 from mb_scanner.lib.codeql.database import CodeQLDatabaseManager
 
 logger = logging.getLogger(__name__)
+
+
+class QueryResult(TypedDict):
+    """個別クエリの実行結果
+
+    Attributes:
+        query_file: クエリファイル名
+        output_path: 結果ファイルのパス
+        result_count: 検出件数
+    """
+
+    query_file: str
+    output_path: str
+    result_count: int
+
+
+class QueryExecutionSuccessResult(TypedDict):
+    """クエリ実行成功結果"""
+
+    status: Literal["success"]
+    results: list[QueryResult]
+
+
+class QueryExecutionErrorResult(TypedDict):
+    """クエリ実行エラー結果"""
+
+    status: Literal["error"]
+    error: str
+
+
+QueryExecutionResult = QueryExecutionSuccessResult | QueryExecutionErrorResult
+"""クエリ実行全体の結果
+
+成功時（status="success"）はresultsを含み、
+エラー時（status="error"）はerrorを含む。
+"""
 
 
 class CodeQLQueryExecutionWorkflow:
@@ -45,7 +81,7 @@ class CodeQLQueryExecutionWorkflow:
         ram: int | None = None,
         sarif_category: str | None = None,
         sarif_add_snippets: bool = True,
-    ) -> dict[str, Any]:
+    ) -> QueryExecutionResult:
         """単一プロジェクトに対してクエリを実行（各クエリファイルごとに別々のSARIFを出力）
 
         フロー:
@@ -65,13 +101,10 @@ class CodeQLQueryExecutionWorkflow:
             sarif_add_snippets: コードスニペットを含めるか
 
         Returns:
-            dict: 実行結果
+            QueryExecutionResult: 実行結果
                 - status: "success" | "error"
-                - results: クエリごとの結果リスト
-                    - query_file: クエリファイル名
-                    - output_path: 結果ファイルのパス
-                    - result_count: 検出件数
-                - error: エラーメッセージ（statusが"error"の場合）
+                - results: クエリごとの結果リスト（成功時）
+                - error: エラーメッセージ（エラー時）
         """
         logger.info("Starting CodeQL query execution for: %s", project_full_name)
 
@@ -99,7 +132,7 @@ class CodeQLQueryExecutionWorkflow:
                     }
 
             # 3. 各クエリファイルごとにクエリ実行
-            results: list[dict[str, Any]] = []
+            results: list[QueryResult] = []
             safe_project_name = project_full_name.replace("/", "-")
 
             for query_file in query_files:
@@ -127,11 +160,11 @@ class CodeQLQueryExecutionWorkflow:
                 result_count = analyzer.count_results(output_path)
 
                 results.append(
-                    {
-                        "query_file": query_file.name,
-                        "output_path": str(output_path),
-                        "result_count": result_count,
-                    }
+                    QueryResult(
+                        query_file=query_file.name,
+                        output_path=str(output_path),
+                        result_count=result_count,
+                    )
                 )
 
                 logger.info(

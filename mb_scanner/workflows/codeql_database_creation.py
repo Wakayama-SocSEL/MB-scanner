@@ -6,12 +6,34 @@
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Literal, TypedDict
 
 from mb_scanner.lib.codeql.database import CodeQLDatabaseManager
 from mb_scanner.lib.github.clone import RepositoryCloner
 
 logger = logging.getLogger(__name__)
+
+
+class DatabaseCreationSuccessResult(TypedDict):
+    """データベース作成成功結果"""
+
+    status: Literal["created", "skipped"]
+    db_path: str
+
+
+class DatabaseCreationErrorResult(TypedDict):
+    """データベース作成エラー結果"""
+
+    status: Literal["error"]
+    error: str
+
+
+DatabaseCreationResult = DatabaseCreationSuccessResult | DatabaseCreationErrorResult
+"""データベース作成結果
+
+成功時（status="created" または "skipped"）はdb_pathを含み、
+エラー時（status="error"）はerrorを含む。
+"""
 
 
 class CodeQLDatabaseCreationWorkflow:
@@ -45,7 +67,7 @@ class CodeQLDatabaseCreationWorkflow:
         *,
         skip_if_exists: bool = True,
         force: bool = False,
-    ) -> dict[str, Any]:
+    ) -> DatabaseCreationResult:
         """プロジェクトのCodeQL DBを作成する
 
         フロー:
@@ -61,9 +83,9 @@ class CodeQLDatabaseCreationWorkflow:
             force: 既存DBを上書きするか
 
         Returns:
-            dict: 実行結果
+            DatabaseCreationResult: 実行結果
                 - status: "created" | "skipped" | "error"
-                - db_path: 作成されたDBのパス（statusが"created"の場合）
+                - db_path: 作成されたDBのパス（statusが"created"または"skipped"の場合）
                 - error: エラーメッセージ（statusが"error"の場合）
         """
         logger.info("Starting CodeQL DB creation for: %s", project_full_name)
