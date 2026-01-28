@@ -82,6 +82,12 @@ class Settings(BaseSettings):
         description="分析対象の総プロジェクト数（箱ひげ図などで母数を揃えるために使用）",
     )
 
+    # ベンチマーク関連設定
+    benchmark_dir: Path | None = Field(
+        default=None,
+        description="ベンチマークデータの保存先ディレクトリ",
+    )
+
     @property
     def effective_data_dir(self) -> Path:
         """データディレクトリの有効なパスを返す"""
@@ -125,6 +131,13 @@ class Settings(BaseSettings):
     def effective_codeql_output_dir(self) -> Path:
         """CodeQLクエリ実行結果の出力先ディレクトリを返す（outputs/queries）"""
         path = self.codeql_output_base_dir or Path.cwd() / "outputs" / "queries"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def effective_benchmark_dir(self) -> Path:
+        """ベンチマークディレクトリを返す（data/benchmarks）"""
+        path = self.benchmark_dir or self.effective_data_dir / "benchmarks"
         path.mkdir(parents=True, exist_ok=True)
         return path
 
