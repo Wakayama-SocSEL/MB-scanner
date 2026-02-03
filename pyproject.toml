@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-mb-scanner = "mb_scanner.cli:main"
+mbs = "mb_scanner.cli:main"
 
 [build-system]
 requires = ["hatchling"]
