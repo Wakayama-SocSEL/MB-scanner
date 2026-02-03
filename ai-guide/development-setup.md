@@ -50,19 +50,23 @@ GitHub Personal Access Token は [Settings > Developer settings > Personal acces
 その他のオプション設定については `.env.sample` を参照してください。
 
 
+### コマンド名
+
+MB-Scannerは`mbs`コマンドで実行します。
+
 ### 基本的なコマンド
 
 利用可能なコマンドとオプションの詳細については、ヘルプを参照してください：
 
 ```bash
 # 全体のヘルプ
-mb-scanner --help
+mbs --help
 
 # 各コマンドのヘルプ
-mb-scanner search --help
-mb-scanner codeql --help
-mb-scanner github --help
-mb-scanner visualize --help
+mbs search --help
+mbs codeql --help
+mbs github --help
+mbs visualize --help
 ```
 ## 開発用コマンド
 

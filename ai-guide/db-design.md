@@ -7,8 +7,8 @@
 ## テーブル概要
 ### projects
 - GitHub プロジェクトの基本情報を保持。
-- 主なカラム: `id`(PK)、`full_name`(UNIQUE/INDEX)、`url`、`stars`(INDEX)、`last_commit_date`(INDEX)、`language`、`description`、`fetched_at`(UTC 現在時刻)。
-- 役割: 重複排除、スター順ソート、データ鮮度管理。
+- 主なカラム: `id`(PK)、`full_name`(UNIQUE/INDEX)、`url`、`stars`(INDEX)、`last_commit_date`(INDEX)、`language`、`description`、`js_lines_count`、`fetched_at`(UTC 現在時刻)。
+- 役割: 重複排除、スター順ソート、データ鮮度管理、JavaScript行数の記録。
 
 ### topics
 - topic マスタ。
@@ -49,6 +49,7 @@ erDiagram
         datetime last_commit_date
         string language
         text description
+        int js_lines_count
         datetime fetched_at
     }
 
