@@ -32,6 +32,7 @@ mb_scanner/
 │   ├── search.py          # リポジトリ検索
 │   ├── codeql.py          # CodeQL DB作成・クエリ実行
 │   ├── visualize.py       # 可視化
+│   ├── benchmark.py       # ベンチマーク等価性チェック
 │   └── migrate.py         # DBマイグレーション
 ├── workflows/             # 複合処理フロー (Transaction Boundary)
 │   ├── search_and_store.py
@@ -39,15 +40,22 @@ mb_scanner/
 │   └── codeql_query_execution.py
 ├── services/              # ビジネスロジック
 │   ├── project_service.py
-│   └── visualization_service.py
+│   ├── visualization_service.py
+│   └── benchmark_runner.py  # ベンチマーク実行
 ├── lib/                    # 外部連携アダプタ
 │   ├── codeql/            # CodeQL CLI wrapper
 │   ├── github/            # GitHub API client (PyGithub)
 │   └── visualization/     # グラフ描画 (Matplotlib)
+├── resources/              # 外部実行環境用リソース
+│   └── benchmark/         # ベンチマーク実行用JavaScriptファイル
+│       ├── sandbox.js     # Node.js サンドボックス環境設定
+│       ├── stabilizers.js # 非決定的関数の固定化（Math.random, Date.nowなど）
+│       └── strategies/    # 比較用のルールを格納（stdout, functions, variablesなど）
 ├── db/                     # DB接続・セッション管理
 ├── models/                # SQLAlchemyモデル定義
 │   ├── project.py         # Project, Topic
-│   └── sarif.py           # 解析結果モデル
+│   ├── sarif.py           # 解析結果モデル
+│   └── benchmark.py       # ベンチマーク結果モデル
 └── core/                   # 設定・ロギング
     └── config.py          # Pydantic Settings
 ```
