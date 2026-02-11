@@ -11,11 +11,7 @@ runner = CliRunner()
 
 
 class TestBenchmarkExtractCommand:
-    """mb-scanner benchmark extractコマンドのテスト
-
-    Note: benchmark_appは単一コマンドのため、Typerは「extract」を省略可能にします。
-    テストでは直接引数を渡します。
-    """
+    """mb-scanner benchmark extractコマンドのテスト"""
 
     def _create_jsonl_file(self, path: Path, entries: list[dict[str, object]]) -> None:
         """テスト用のJSONLファイルを作成する"""
@@ -40,7 +36,7 @@ class TestBenchmarkExtractCommand:
         )
 
         # Act
-        result = runner.invoke(benchmark_app, [str(input_file)])
+        result = runner.invoke(benchmark_app, ["extract", str(input_file)])
 
         # Assert
         assert result.exit_code == 0
@@ -66,7 +62,7 @@ class TestBenchmarkExtractCommand:
         )
 
         # Act
-        result = runner.invoke(benchmark_app, [str(input_file)])
+        result = runner.invoke(benchmark_app, ["extract", str(input_file)])
 
         # Assert
         assert result.exit_code == 0
@@ -92,7 +88,7 @@ class TestBenchmarkExtractCommand:
         )
 
         # Act
-        result = runner.invoke(benchmark_app, [str(input_file), "--id", "1"])
+        result = runner.invoke(benchmark_app, ["extract", str(input_file), "--id", "1"])
 
         # Assert
         assert result.exit_code == 0
@@ -118,7 +114,7 @@ class TestBenchmarkExtractCommand:
         )
 
         # Act
-        result = runner.invoke(benchmark_app, [str(input_file), "--ids", "0,2"])
+        result = runner.invoke(benchmark_app, ["extract", str(input_file), "--ids", "0,2"])
 
         # Assert
         assert result.exit_code == 0
@@ -143,7 +139,7 @@ class TestBenchmarkExtractCommand:
         )
 
         # Act
-        result = runner.invoke(benchmark_app, [str(input_file), "--count", "2"])
+        result = runner.invoke(benchmark_app, ["extract", str(input_file), "--count", "2"])
 
         # Assert
         assert result.exit_code == 0
@@ -167,7 +163,7 @@ class TestBenchmarkExtractCommand:
         )
 
         # Act
-        result = runner.invoke(benchmark_app, [str(input_file), "--offset", "1"])
+        result = runner.invoke(benchmark_app, ["extract", str(input_file), "--offset", "1"])
 
         # Assert
         assert result.exit_code == 0
@@ -192,7 +188,7 @@ class TestBenchmarkExtractCommand:
         )
 
         # Act - offset=1, count=2で id_1とid_2のみ抽出
-        result = runner.invoke(benchmark_app, [str(input_file), "--offset", "1", "--count", "2"])
+        result = runner.invoke(benchmark_app, ["extract", str(input_file), "--offset", "1", "--count", "2"])
 
         # Assert
         assert result.exit_code == 0
@@ -217,7 +213,7 @@ class TestBenchmarkExtractCommand:
         )
 
         # Act
-        result = runner.invoke(benchmark_app, [str(input_file), "--output-dir", str(output_dir)])
+        result = runner.invoke(benchmark_app, ["extract", str(input_file), "--output-dir", str(output_dir)])
 
         # Assert
         assert result.exit_code == 0
@@ -245,7 +241,7 @@ class TestBenchmarkExtractCommand:
         (existing_dir / "slow.js").write_text("existing_content")
 
         # Act
-        result = runner.invoke(benchmark_app, [str(input_file)])
+        result = runner.invoke(benchmark_app, ["extract", str(input_file)])
 
         # Assert
         assert result.exit_code == 0
@@ -271,7 +267,7 @@ class TestBenchmarkExtractCommand:
         (existing_dir / "slow.js").write_text("existing_content")
 
         # Act
-        result = runner.invoke(benchmark_app, [str(input_file), "--force"])
+        result = runner.invoke(benchmark_app, ["extract", str(input_file), "--force"])
 
         # Assert
         assert result.exit_code == 0
@@ -283,7 +279,7 @@ class TestBenchmarkExtractCommand:
     def test_extract_input_file_not_found(self, tmp_path: Path) -> None:
         """入力ファイルが存在しない場合にエラーになることを確認"""
         # Act
-        result = runner.invoke(benchmark_app, [str(tmp_path / "nonexistent.jsonl")])
+        result = runner.invoke(benchmark_app, ["extract", str(tmp_path / "nonexistent.jsonl")])
 
         # Assert
         assert result.exit_code == 1
@@ -297,7 +293,7 @@ class TestBenchmarkExtractCommand:
         input_file.write_text("")
 
         # Act
-        result = runner.invoke(benchmark_app, [str(input_file)])
+        result = runner.invoke(benchmark_app, ["extract", str(input_file)])
 
         # Assert
         assert result.exit_code == 0
