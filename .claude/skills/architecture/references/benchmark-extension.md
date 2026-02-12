@@ -64,57 +64,25 @@ def test_equivalence_check_with_nondeterministic_functions(tmp_path: Path) -> No
     ...
 ```
 
-## 2. 新しい比較ストラテジーの追加
+## 2. 比較ストラテジーのアーキテクチャ
 
-### 目的
-等価性を判定する新しい方法を追加します（例: メモリ使用量、実行時間など）。
+### 現在の実装（2026年2月）
+- **全戦略実行**: 適用可能な全ての戦略を実行し、結果を `strategy_results` 配列に格納
+- **stdout戦略の特別扱い**: 適用可能なら他の戦略を実行せず即返し
+- **ステータス判定**: 全て"equal"なら"equal"、1つでも"not_equal"なら"not_equal"
 
-### 手順
+### データフロー
+1. **Node.js側** (`runner.js`): 各戦略を実行し、結果をJSON出力
+2. **Python側** (`benchmark_runner.py`): JSONをパースして `EquivalenceResult` に変換
+3. **モデル定義** (`models/benchmark.py`):
+   - `StrategyResult`: 個別戦略の結果
+   - `EquivalenceResult`: 全戦略の結果を含む総合結果
 
-#### 2-1. ストラテジーファイルの作成
-`mb_scanner/resources/benchmark/strategies/` に新しいJavaScriptファイルを作成します。
-
-**ファイル構造**:
-```javascript
-const { createSandbox } = require('../sandbox.js');
-
-function compareByNewStrategy(slowCode, fastCode) {
-  const sandbox = createSandbox(console.log);
-
-  // slowCode と fastCode を実行して比較
-  // ...
-
-  // 結果を出力: "equal", "not_equal", "error" のいずれか
-  console.log("equal");
-}
-
-// コマンドライン引数からコードを受け取る
-const slowCode = process.argv[2];
-const fastCode = process.argv[3];
-compareByNewStrategy(slowCode, fastCode);
-```
-
-**重要事項**:
-- `sandbox.js` を必ずインポートし、サンドボックス環境を使用すること
-- 標準出力に結果（`equal`, `not_equal`, `error`）を出力すること
-
-#### 2-2. Pythonサービスの更新
-`mb_scanner/services/benchmark_runner.py` で新しいストラテジーを認識できるように更新します。
-
-```python
-STRATEGIES = ["stdout", "functions", "variables", "new_strategy"]
-
-def run_equivalence_check(
-    benchmark_dir: Path,
-    strategy: str = "stdout",
-    timeout: int = 10,
-) -> EquivalenceCheckResult:
-    # 新しいストラテジーの実行ロジックを追加
-    ...
-```
-
-#### 2-3. テストの追加
-新しいストラテジーの動作を検証するテストを `tests/services/test_benchmark_runner.py` に追加します。
+### 新しい戦略の追加手順
+1. `strategies/` に新ストラテジークラスを作成（`canApply()`, `compare()` 実装）
+2. `runner.js` で戦略リストに追加
+3. `models/benchmark.py` の `comparison_method` Literal に追加
+4. テスト追加 (`tests/services/test_benchmark_runner.py`)
 
 ## 3. 設計上の注意点
 
