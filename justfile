@@ -6,10 +6,10 @@ default:
 # 開発環境のセットアップ (Setup Development Environment) ⚙️
 # -----------------------------------------------------------------------------
 
-# Pythonの仮想環境を作成する
+# Pythonの仮想環境を作成する (既存の場合はスキップ)
 venv:
     @echo "🐍 Creating Python virtual environment..."
-    uv venv
+    uv venv --clear
 
 # Pythonの依存関係をインストールする (venvに依存)
 python-deps: venv
