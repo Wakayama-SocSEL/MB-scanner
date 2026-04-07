@@ -5,9 +5,9 @@ JSONLファイルからslow/fastコードを読み込み、個別ファイルに
 """
 
 import json
+import os
 from pathlib import Path
-import re
-from typing import Any
+from typing import Any, cast
 
 import typer
 
@@ -17,45 +17,50 @@ from mb_scanner.services.benchmark_runner import run_batch_equivalence_check
 benchmark_app = typer.Typer(help="Benchmark data commands")
 
 
-def compact_json_array(json_str: str) -> str:
-    """配列のみをコンパクト表示に変換する
+def _is_primitive(v: Any) -> bool:
+    return not isinstance(v, (dict, list))
 
-    JSONの配列部分を1行にまとめて表示します。
-    オブジェクトの構造は維持されます。
+
+def _serialize(obj: Any, level: int) -> str:
+    indent = "  " * level
+    inner = "  " * (level + 1)
+
+    if isinstance(obj, list):
+        obj_list = cast(list[Any], obj)
+        if not obj_list:
+            return "[]"
+        # 全要素がプリミティブの場合のみ1行でコンパクト表示
+        if all(_is_primitive(item) for item in obj_list):
+            items = [json.dumps(item, ensure_ascii=False) for item in obj_list]
+            return "[" + ", ".join(items) + "]"
+        # 複雑な要素（dict, list）を含む場合 → 展開表示
+        parts = [f"{inner}{_serialize(item, level + 1)}" for item in obj_list]
+        return "[\n" + ",\n".join(parts) + "\n" + indent + "]"
+
+    if isinstance(obj, dict):
+        obj_dict = cast(dict[str, Any], obj)
+        if not obj_dict:
+            return "{}"
+        parts = [f"{inner}{json.dumps(k, ensure_ascii=False)}: {_serialize(v, level + 1)}" for k, v in obj_dict.items()]
+        return "{\n" + ",\n".join(parts) + "\n" + indent + "}"
+
+    return json.dumps(obj, ensure_ascii=False)
+
+
+def compact_json_array(json_str: str) -> str:
+    """JSON文字列内の配列をコンパクト表示する
+
+    - プリミティブ値のみの配列: 1行でコンパクト表示
+    - フラットなdictのみの配列: 1行でコンパクト表示
+    - 複雑な構造を含む配列: 展開表示
 
     Args:
-        json_str: 整形されたJSON文字列
+        json_str: JSON文字列
 
     Returns:
         配列をコンパクト表示したJSON文字列
     """
-
-    # 配列部分を検出して1行にまとめる正規表現パターン
-    # 改行とインデントを含む配列を検出: [\n  "item1",\n  "item2"\n]
-    def compact_array(match: re.Match[str]) -> str:
-        array_content = match.group(0)
-        # 配列内の改行とインデントを削除
-        compact = re.sub(r"\n\s*", "", array_content)
-        # カンマの後にスペースを1つ追加
-        compact = re.sub(r",(?=\S)", ", ", compact)
-        return compact
-
-    # 配列パターン: [ で始まり ] で終わる
-    # (?s) は . を改行にもマッチさせるフラグ
-    pattern = r'\[(?:\s*"[^"]*"(?:\s*,\s*"[^"]*")*\s*|\s*\d+(?:\s*,\s*\d+)*\s*|\s*(?:"[^"]*"|\d+|\{[^}]*\})(?:\s*,\s*(?:"[^"]*"|\d+|\{[^}]*\}))*\s*)\]'
-
-    # より汎用的なパターン: 配列全体を検出
-    pattern = r"\[\s*(?:[^\[\]]*)\s*\]"
-
-    # 再帰的に処理するため、内側の配列から順に処理
-    max_iterations = 10
-    for _ in range(max_iterations):
-        new_str = re.sub(pattern, compact_array, json_str)
-        if new_str == json_str:
-            break
-        json_str = new_str
-
-    return json_str
+    return _serialize(json.loads(json_str), 0)
 
 
 def format_json_compact_arrays(data: dict[str, Any]) -> str:
@@ -67,11 +72,7 @@ def format_json_compact_arrays(data: dict[str, Any]) -> str:
     Returns:
         配列をコンパクト表示したJSON文字列
     """
-    # まず標準的なインデント付きJSON文字列を生成
-    json_str = json.dumps(data, indent=2, ensure_ascii=False)
-
-    # 配列部分をコンパクトに変換
-    return compact_json_array(json_str)
+    return _serialize(data, 0)
 
 
 @benchmark_app.command("extract")
@@ -207,7 +208,7 @@ def equivalence_check(
     workers: int = typer.Option(
         4,
         "--workers",
-        help="並列ワーカー数",
+        help="並列ワーカー数（-1で全CPUコアを使用）",
     ),
     output: Path | None = typer.Option(
         None,
@@ -236,6 +237,10 @@ def equivalence_check(
 
     typer.echo(f"Running equivalence check on {input_dir} ...")
 
+    # ワーカー数の表示
+    actual_workers = os.cpu_count() if workers == -1 else workers
+    typer.echo(f"Using {actual_workers} workers (workers={workers})")
+
     summary = run_batch_equivalence_check(
         input_dir=input_dir,
         target_ids=target_ids,
@@ -255,7 +260,17 @@ def equivalence_check(
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         # 配列をコンパクト表示したJSON文字列を生成
-        json_str = format_json_compact_arrays(summary.model_dump())
+        # model_dump(mode='json')を使ってfield_serializerを適用
+        # 大量データのため深さ制限を増やす（デフォルト: 255 → 512）
+        try:
+            json_str = format_json_compact_arrays(summary.model_dump(mode="json"))
+        except ValueError as e:
+            if "Circular reference" in str(e) or "depth exceeded" in str(e):
+                # 深さ制限エラーの場合、Python標準のjson.dumpsで直接シリアライズ
+                typer.echo("Warning: Using fallback JSON serialization due to depth limit", err=True)
+                json_str = format_json_compact_arrays(json.loads(summary.model_dump_json()))
+            else:
+                raise
         output.write_text(json_str, encoding="utf-8")
         typer.echo(f"Results saved to {output}")
 

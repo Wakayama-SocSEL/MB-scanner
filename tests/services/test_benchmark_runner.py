@@ -39,9 +39,8 @@ class TestRunEquivalenceCheck:
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "equal"
-        assert result.comparison_method == "stdout"
-        assert result.slow_output == "hello"
-        assert result.fast_output == "hello"
+        # equal な結果は stderr にのみ出力されるため strategy_results は空
+        assert result.strategy_results == []
 
     def test_not_equal_stdout(self, benchmark_dir: Path) -> None:
         """console.logの出力が不一致の場合、not_equalを返す"""
@@ -54,7 +53,9 @@ class TestRunEquivalenceCheck:
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "not_equal"
-        assert result.comparison_method == "stdout"
+        assert len(result.strategy_results) == 1
+        assert result.strategy_results[0].comparison_method == "stdout"
+        assert result.strategy_results[0].status == "not_equal"
 
     def test_equal_variables(self, benchmark_dir: Path) -> None:
         """VAR_変数の最終状態が一致する場合、equalを返す"""
@@ -67,7 +68,7 @@ class TestRunEquivalenceCheck:
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "equal"
-        assert result.comparison_method == "variables"
+        assert result.strategy_results == []
 
     def test_not_equal_variables(self, benchmark_dir: Path) -> None:
         """VAR_変数の最終状態が不一致の場合、not_equalを返す"""
@@ -80,7 +81,8 @@ class TestRunEquivalenceCheck:
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "not_equal"
-        assert result.comparison_method == "variables"
+        assert len(result.strategy_results) == 1
+        assert result.strategy_results[0].comparison_method == "variables"
 
     def test_equal_functions(self, benchmark_dir: Path) -> None:
         """FUNCTION_*の戻り値が一致する場合、equalを返す"""
@@ -96,7 +98,7 @@ class TestRunEquivalenceCheck:
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "equal"
-        assert result.comparison_method == "functions"
+        assert result.strategy_results == []
 
     def test_not_equal_functions(self, benchmark_dir: Path) -> None:
         """FUNCTION_*の戻り値が不一致の場合、not_equalを返す"""
@@ -106,7 +108,8 @@ class TestRunEquivalenceCheck:
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "not_equal"
-        assert result.comparison_method == "functions"
+        assert len(result.strategy_results) == 1
+        assert result.strategy_results[0].comparison_method == "functions"
 
     def test_skipped_no_output_no_vars(self, benchmark_dir: Path) -> None:
         """console.logもVAR_変数もない場合、skippedを返す"""
@@ -119,7 +122,6 @@ class TestRunEquivalenceCheck:
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "skipped"
-        assert result.comparison_method == "none"
 
     def test_error_runtime(self, benchmark_dir: Path) -> None:
         """実行時エラーが発生する場合、errorを返す"""
@@ -132,7 +134,9 @@ class TestRunEquivalenceCheck:
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "error"
-        assert result.error_message is not None
+        # エラーは strategy_results の中に含まれる
+        assert len(result.strategy_results) > 0
+        assert result.strategy_results[0].error_message is not None
 
     def test_missing_files(self, benchmark_dir: Path) -> None:
         """slow.jsまたはfast.jsが存在しない場合、errorを返す"""
@@ -143,7 +147,6 @@ class TestRunEquivalenceCheck:
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "error"
-        assert result.comparison_method == "none"
         assert result.error_message is not None
 
     def test_equal_with_math_random_stdout(self, benchmark_dir: Path) -> None:
@@ -166,8 +169,6 @@ console.log(JSON.stringify(arr));
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "equal"
-        assert result.comparison_method == "stdout"
-        assert result.slow_output == result.fast_output
 
     def test_equal_with_math_random_variables(self, benchmark_dir: Path) -> None:
         """Math.random()を使用するコードでも、シード固定により等価判定できる（variables戦略）"""
@@ -187,7 +188,6 @@ for (var i = 0; i < 5; i++) {
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "equal"
-        assert result.comparison_method == "variables"
 
     def test_equal_with_date_now(self, benchmark_dir: Path) -> None:
         """Date.now()を使用するコードでも、タイムスタンプ固定により等価判定できる"""
@@ -203,8 +203,6 @@ console.log(VAR_1);
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "equal"
-        assert result.comparison_method == "stdout"
-        assert result.slow_output == result.fast_output
 
     def test_equal_with_new_date(self, benchmark_dir: Path) -> None:
         """New Date()を使用するコードでも、タイムスタンプ固定により等価判定できる"""
@@ -220,11 +218,14 @@ console.log(VAR_1.getTime());
         result = run_equivalence_check(entry_dir)
 
         assert result.status == "equal"
-        assert result.comparison_method == "stdout"
-        assert result.slow_output == result.fast_output
 
     def test_equal_with_math_random_sorting(self, benchmark_dir: Path) -> None:
-        """Math.random()で生成した配列のソート結果を比較（id_0のようなケース）"""
+        """Math.random()で生成した配列のソート結果を比較（id_0のようなケース）
+
+        functions戦略は equal（戻り値が一致）だが、
+        variables戦略は not_equal（VAR_1がfast版で変更されるため）。
+        equal な戦略結果は stderr にのみ出力され、strategy_results には含まれない。
+        """
         slow_code = """
 var VAR_1 = Array.apply(null, Array(100)).map(function () {
   return Math.floor(1000 * Math.random());
@@ -255,8 +256,12 @@ FUNCTION_1(VAR_1);
         entry_dir = _create_entry(benchmark_dir, 104, slow_code, fast_code)
         result = run_equivalence_check(entry_dir)
 
-        assert result.status == "equal"
-        assert result.comparison_method == "functions"
+        # functions戦略（equal）は stderr のみ → strategy_results に含まれない
+        # variables戦略（not_equal）のみ strategy_results に含まれる
+        assert result.status == "not_equal"
+        assert len(result.strategy_results) == 1
+        assert result.strategy_results[0].comparison_method == "variables"
+        assert result.strategy_results[0].status == "not_equal"
 
 
 class TestRunBatchEquivalenceCheck:
@@ -335,3 +340,14 @@ class TestRunBatchEquivalenceCheck:
         assert summary.total == 2
         assert summary.equal == 1
         assert summary.not_equal == 1
+
+    def test_batch_workers_minus_1(self, benchmark_dir: Path) -> None:
+        """workers=-1で全CPUコアを使用する"""
+        for i in range(5):
+            _create_entry(benchmark_dir, i, f'console.log("{i}");', f'console.log("{i}");')
+
+        summary = run_batch_equivalence_check(benchmark_dir, workers=-1)
+
+        assert summary.total == 5
+        assert summary.equal == 5
+        assert [r.id for r in summary.results] == list(range(5))

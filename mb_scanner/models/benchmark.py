@@ -10,6 +10,47 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_serializer
 
 
+class StrategyResult(BaseModel):
+    """個別戦略の比較結果
+
+    Attributes:
+        comparison_method: 使用した比較戦略
+        status: この戦略での比較結果
+        slow_output: slow版の実行出力
+        fast_output: fast版の実行出力
+        error_message: エラーメッセージ（エラー時のみ）
+    """
+
+    comparison_method: Literal["stdout", "functions", "variables"]
+    """使用した比較戦略"""
+
+    status: Literal["equal", "not_equal", "error"]
+    """この戦略での比較結果"""
+
+    slow_output: list[Any] | dict[str, Any] | str | None = None
+    """slow版の実行出力"""
+
+    fast_output: list[Any] | dict[str, Any] | str | None = None
+    """fast版の実行出力"""
+
+    error_message: str | None = None
+    """エラーメッセージ（エラー時のみ）"""
+
+    @field_serializer("slow_output", "fast_output")
+    def format_output(self, value: list[Any] | dict[str, Any] | str | None) -> list[Any] | dict[str, Any] | str | None:
+        """JSON文字列の場合、JSONオブジェクトに変換して見やすくする"""
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                return value
+        return value
+
+
 class BenchmarkEntry(BaseModel):
     """JSONLの各行を表すモデル
 
@@ -39,9 +80,7 @@ class EquivalenceResult(BaseModel):
     Attributes:
         id: ベンチマークエントリの一意識別子
         status: チェック結果のステータス
-        slow_output: slow版の実行出力（JSONオブジェクトまたは文字列）
-        fast_output: fast版の実行出力（JSONオブジェクトまたは文字列）
-        comparison_method: 比較に使用した方法
+        strategy_results: not_equal / error となった戦略の結果リスト
         error_message: エラーが発生した場合のメッセージ
     """
 
@@ -51,48 +90,11 @@ class EquivalenceResult(BaseModel):
     status: Literal["equal", "not_equal", "error", "timeout", "skipped"]
     """チェック結果のステータス"""
 
-    slow_output: dict[str, Any] | str | None = None
-    """slow版の実行出力（JSONオブジェクトまたは文字列）"""
-
-    fast_output: dict[str, Any] | str | None = None
-    """fast版の実行出力（JSONオブジェクトまたは文字列）"""
-
-    comparison_method: Literal["stdout", "functions", "variables", "none"]
-    """比較に使用した方法"""
+    strategy_results: list[StrategyResult] = []
+    """not_equal / error となった戦略の結果リスト（equal は stderr にのみ出力される）"""
 
     error_message: str | None = None
     """エラーが発生した場合のメッセージ"""
-
-    @field_serializer("slow_output", "fast_output")
-    def format_output(self, value: dict[str, Any] | str | None) -> dict[str, Any] | str | None:
-        """JSON文字列の場合、JSONオブジェクトに変換して見やすくする
-
-        Args:
-            value: 出力（JSON文字列、JSONオブジェクト、プレーンテキスト、またはNone）
-
-        Returns:
-            JSON文字列の場合はパースしたJSONオブジェクト、
-            既にJSONオブジェクトの場合はそのまま、
-            プレーンテキストの場合は元の文字列、
-            Noneの場合はNone
-        """
-        if value is None:
-            return None
-
-        # 既にdictオブジェクトの場合はそのまま返す
-        if isinstance(value, dict):
-            return value
-
-        # 文字列の場合、JSONパースを試みる
-        if isinstance(value, str):
-            try:
-                # JSON文字列をパースしてオブジェクトに変換
-                return json.loads(value)
-            except (json.JSONDecodeError, TypeError):
-                # パースに失敗した場合は元の文字列を返す（プレーンテキスト）
-                return value
-
-        return value
 
 
 class EquivalenceSummary(BaseModel):

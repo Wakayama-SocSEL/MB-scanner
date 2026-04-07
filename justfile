@@ -40,6 +40,31 @@ typecheck:
     @echo "🔍 Running type check with Pyright..."
     uv run pyright
 
+typecheck-ts:
+    @echo "🔍 Running TypeScript type check with pnpm script..."
+    pnpm --prefix mb_scanner/resources/benchmark run typecheck
+
+# -----------------------------------------------------------------------------
+# TypeScript Build (TypeScript ビルド) 🧱
+# -----------------------------------------------------------------------------
+
+# benchmark の TypeScript を単発ビルドする
+build-benchmark-ts:
+    @echo "🧱 Building TypeScript with pnpm script..."
+    pnpm --prefix mb_scanner/resources/benchmark run build
+
+# benchmark の TypeScript を watch モードでビルドする
+watch-benchmark-ts:
+    @echo "👀 Watching TypeScript build with pnpm script..."
+    pnpm --prefix mb_scanner/resources/benchmark run build:watch
+
+# benchmark の TypeScript watch を停止する
+stop-benchmark-watch:
+    @echo "🛑 Stopping TypeScript watch processes..."
+    pkill -f 'node build.mjs --watch' || true
+    pkill -f 'pnpm --prefix mb_scanner/resources/benchmark run build:watch' || true
+    pkill -f 'esbuild .*runner.ts.*--watch' || true
+
 # -----------------------------------------------------------------------------
 # データベース管理 (Database Management) 🗄️
 # -----------------------------------------------------------------------------
