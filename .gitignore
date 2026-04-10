@@ -13,8 +13,8 @@ debug/
 # output files
 outputs/
 *.log
-data/codeql-dbs/
-data/benchmarks/
+data/*
+!data/mb_scanner.db
 
 # AI tmp files
 .ai/
@@ -24,3 +24,4 @@ data/benchmarks/
 tmp/
 
 codeql/queries
+node_modules/

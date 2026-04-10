@@ -1,6 +1,9 @@
 # OS固有のファイル
 .DS_Store
 
+# キャッシュファイル
+.ruff_cache/
+
 # ログファイル
 *.log
 
@@ -15,6 +18,7 @@ AGENTS.md
 CLUADE.md
 ai-guide/
 .ai/
+outputs/
 
 # 設定ファイル
 .env.sample

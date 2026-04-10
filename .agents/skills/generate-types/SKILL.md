@@ -1,3 +1,10 @@
+---
+name: generate-types
+description: JSONファイルからPydantic v2モデルを自動生成し、mb_scanner/models/に配置する。SARIFやサマリーJSONなどの外部データ型を追加・更新したいときに使う。
+argument-hint: <入力ファイルパス (.json または .sarif)>
+disable-model-invocation: true
+---
+
 # 型生成コマンド
 
 JSONファイルからPydantic v2モデルを自動生成し、`mb_scanner/models/`に配置するコマンドです。
@@ -16,18 +23,13 @@ $ARGUMENTS: 入力ファイルパス（.json または .sarif）
 
 ### 2. datamodel-codegenで初期モデル生成
 
-以下のコマンドで一時ファイルにモデルを生成します：
+以下のスクリプトで一時ファイルにモデルを生成します：
 
 ```bash
-datamodel-codegen \
-  --input "$ARGUMENTS" \
-  --input-file-type json \
-  --output-model-type pydantic_v2.BaseModel \
-  --output /tmp/generated_model.py \
-  --use-annotated \
-  --field-constraints \
-  --target-python-version 3.12
+.claude/skills/generate-types/run-codegen.sh "$ARGUMENTS"
 ```
+
+成功すると `/tmp/generated_model.py` のパスが出力されます。
 
 ### 3. 生成されたモデルのレビュー
 

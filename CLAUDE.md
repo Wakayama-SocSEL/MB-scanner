@@ -1,3 +1,1 @@
-# CLAUDE.md
-
-必ずリポジトリルートの`ai-guide/index.md`を読み、そこからリンクされている全てのファイルを参照してください。
+/Users/tomoya-n/dev/research/MB-scanner/main-feature-add-skills/AGENTS.md

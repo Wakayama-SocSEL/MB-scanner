@@ -5,6 +5,7 @@ Typer アプリケーションを初期化し、各サブコマンド（search, 
 
 from typer import Typer
 
+from mb_scanner.cli.benchmark import benchmark_app
 from mb_scanner.cli.codeql import codeql_app
 from mb_scanner.cli.count_lines import count_lines_app
 from mb_scanner.cli.github import github_app
@@ -37,6 +38,9 @@ app.registered_groups.extend(migrate_app.registered_groups)
 
 # visualize コマンドを追加
 app.add_typer(visualize_app, name="visualize")
+
+# benchmark コマンドを追加
+app.add_typer(benchmark_app, name="benchmark")
 
 
 def main() -> None:

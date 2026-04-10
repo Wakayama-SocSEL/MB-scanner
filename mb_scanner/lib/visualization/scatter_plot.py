@@ -23,6 +23,8 @@ def create_scatter_plot(
     log_scale_y: bool = False,
     show_correlation: bool = False,
     show_regression: bool = False,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> None:
     """散布図を作成して保存する
 
@@ -36,6 +38,8 @@ def create_scatter_plot(
         log_scale_y: y軸を対数軸にするかどうか（デフォルト: False）
         show_correlation: スピアマンの順位相関係数を表示するかどうか（デフォルト: False）
         show_regression: 回帰直線を表示するかどうか（デフォルト: False）
+        xlim: x軸の範囲 (min, max)。Noneの場合は自動設定
+        ylim: y軸の範囲 (min, max)。Noneの場合は自動設定
     """
     # 出力ディレクトリが存在しない場合は作成
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -62,6 +66,12 @@ def create_scatter_plot(
     plt.ylabel(ylabel, fontsize=12)
     plt.grid(True, alpha=0.3)
 
+    # 軸範囲の設定
+    if xlim is not None:
+        plt.xlim(xlim)
+    if ylim is not None:
+        plt.ylim(ylim)
+
     # 回帰直線を計算・表示（オプション）
     if show_regression and len(data) >= 2:
         # 対数変換（必要に応じて）
@@ -69,10 +79,20 @@ def create_scatter_plot(
         y_calc = np.log10(y_data) if log_scale_y else np.array(y_data)
 
         # 線形回帰
-        slope, intercept, _r_value, _p_value, _std_err = stats.linregress(x_calc, y_calc)
+        result = stats.linregress(x_calc, y_calc)
+        slope = result.slope
+        intercept = result.intercept
+
+        # 回帰直線の描画範囲を決定（xlimが設定されている場合はその範囲、なければデータの範囲）
+        if xlim is not None:
+            x_min_line = np.log10(xlim[0]) if log_scale_x else xlim[0]
+            x_max_line = np.log10(xlim[1]) if log_scale_x else xlim[1]
+        else:
+            x_min_line = min(x_calc)
+            x_max_line = max(x_calc)
 
         # 回帰直線の計算
-        x_line = np.linspace(min(x_calc), max(x_calc), 100)
+        x_line = np.linspace(x_min_line, x_max_line, 100)
         y_line = slope * x_line + intercept
 
         # 元のスケールに戻す（対数軸の場合）
@@ -86,7 +106,9 @@ def create_scatter_plot(
 
     # スピアマンの順位相関係数を計算・表示（オプション）
     if show_correlation and len(data) >= 2:
-        correlation, pvalue = stats.spearmanr(x_data, y_data)
+        result = stats.spearmanr(x_data, y_data)
+        correlation = result.statistic
+        pvalue = result.pvalue
         # グラフの右上に相関係数を表示
         correlation_text = f"Spearman's ρ = {correlation:.3f}\np-value = {pvalue:.3e}"
         plt.text(
@@ -118,6 +140,8 @@ def create_hexbin_plot(
     cmap: str = "YlOrRd",
     show_correlation: bool = False,
     show_regression: bool = False,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> None:
     """hexbinプロット（六角形ビニング）を作成して保存する
 
@@ -133,6 +157,8 @@ def create_hexbin_plot(
         cmap: カラーマップ名（デフォルト: 'YlOrRd'）
         show_correlation: スピアマンの順位相関係数を表示するかどうか（デフォルト: False）
         show_regression: 回帰直線を表示するかどうか（デフォルト: False）
+        xlim: x軸の範囲 (min, max)。Noneの場合は自動設定
+        ylim: y軸の範囲 (min, max)。Noneの場合は自動設定
 
     Raises:
         ValueError: データが空の場合
@@ -178,10 +204,20 @@ def create_hexbin_plot(
         y_calc = np.log10(y_data) if log_scale_y else np.array(y_data)
 
         # 線形回帰
-        slope, intercept, _r_value, _p_value, _std_err = stats.linregress(x_calc, y_calc)
+        result = stats.linregress(x_calc, y_calc)
+        slope = result.slope
+        intercept = result.intercept
+
+        # 回帰直線の描画範囲を決定（xlimが設定されている場合はその範囲、なければデータの範囲）
+        if xlim is not None:
+            x_min_line = np.log10(xlim[0]) if log_scale_x else xlim[0]
+            x_max_line = np.log10(xlim[1]) if log_scale_x else xlim[1]
+        else:
+            x_min_line = min(x_calc)
+            x_max_line = max(x_calc)
 
         # 回帰直線の計算
-        x_line = np.linspace(min(x_calc), max(x_calc), 100)
+        x_line = np.linspace(x_min_line, x_max_line, 100)
         y_line = slope * x_line + intercept
 
         # 元のスケールに戻す（対数軸の場合）
@@ -195,7 +231,9 @@ def create_hexbin_plot(
 
     # スピアマンの順位相関係数を計算・表示（オプション）
     if show_correlation and len(data) >= 2:
-        correlation, pvalue = stats.spearmanr(x_data, y_data)
+        result = stats.spearmanr(x_data, y_data)
+        correlation = result.statistic
+        pvalue = result.pvalue
         # グラフの右上に相関係数を表示
         correlation_text = f"Spearman's ρ = {correlation:.3f}\np-value = {pvalue:.3e}"
         plt.text(
@@ -214,6 +252,12 @@ def create_hexbin_plot(
     plt.xlabel(xlabel, fontsize=12)
     plt.ylabel(ylabel, fontsize=12)
     plt.grid(True, alpha=0.3)
+
+    # 軸範囲の設定
+    if xlim is not None:
+        plt.xlim(xlim)
+    if ylim is not None:
+        plt.ylim(ylim)
 
     # レイアウトを調整して保存
     plt.tight_layout()
