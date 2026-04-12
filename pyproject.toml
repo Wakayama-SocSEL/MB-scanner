@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-mbs = "mb_scanner.cli:main"
+mbs = "mb_scanner.adapters.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -34,6 +34,7 @@ dev = [
     "pyright>=1.1.390",
     "joblib-stubs>=1.5.3.0.20251223",
     "scipy-stubs>=1.17.0.2",
+    "import-linter>=2.11",
 ]
 
 [tool.ruff]
@@ -78,6 +79,9 @@ ignore = [
     "RUF002",  # docstring内の日本語文字 (日本語プロジェクトのため許可)
     "RUF003",  # comment内の日本語文字 (日本語プロジェクトのため許可)
     "E501",    # 行が長すぎる (コード生成で長いテンプレートが必要)
+    "D104",  # __init__.py のdocstring (CA構造で多数の空__init__.pyが必要)
+    "D105",  # __repr__ 等のmagic methodのdocstring
+    "D107",  # __init__ のdocstring (クラスdocstringで代替)
     "D400",
     "D413",
     "D415",
@@ -89,8 +93,10 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]  # 未使用import (re-exportの場合)
-"mb_scanner/models/sarif.py" = ["N815"]  # SARIF標準フォーマットのcamelCaseを維持
-"mb_scanner/cli/*.py" = ["B008"]  # typer.Optionをデフォルト引数で使用 (Typerの正しい使い方)
+"mb_scanner/domain/entities/sarif.py" = ["N815"]  # SARIF標準フォーマットのcamelCaseを維持
+"mb_scanner/adapters/cli/**/*.py" = ["B008"]  # typer.Optionをデフォルト引数で使用 (Typerの正しい使い方)
+"mb_scanner/domain/ports/**/*.py" = ["D102"]  # Protocolメソッドはクラスdocstringで代替
+"mb_scanner/adapters/repositories/**/*.py" = ["D102"]  # Protocol実装のメソッドはインターフェース定義を参照
 
 [tool.ruff.lint.isort]
 # プロジェクト内のモジュールを正しく認識
@@ -170,3 +176,27 @@ reportMissingTypeStubs = false
 executionEnvironments = [
     { root = "tests", reportPrivateUsage = "none", reportUnknownMemberType = "none", reportUnknownArgumentType = "none", reportUnknownVariableType = "none", reportMissingParameterType = "none", reportUnknownParameterType = "none", reportArgumentType = "none", reportUnknownLambdaType = "none" }
 ]
+
+[tool.importlinter]
+root_packages = ["mb_scanner"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Clean Architecture layer dependencies"
+type = "layers"
+layers = [
+    "mb_scanner.infrastructure",
+    "mb_scanner.adapters",
+    "mb_scanner.use_cases",
+    "mb_scanner.domain",
+]
+# adapters は infrastructure を参照する（CLI=composition root, repositories=ORM実装）
+ignore_imports = [
+    "mb_scanner.adapters.** -> mb_scanner.infrastructure.**",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain must not depend on infrastructure frameworks"
+type = "forbidden"
+source_modules = ["mb_scanner.domain"]
+forbidden_modules = ["sqlalchemy", "typer", "github", "matplotlib"]
