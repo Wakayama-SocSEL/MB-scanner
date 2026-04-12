@@ -8,19 +8,33 @@
 
 ## ディレクトリ構成と命名
 
-- **配置**: `tests/` 以下に実装モジュールと対応する形で配置する（例: `tests/services/test_project_service.py`）。
+- **配置**: `tests/` 以下に CA 構造をミラーした形で配置する。
+  ```
+  tests/
+  ├── domain/entities/          # ドメインモデルのテスト
+  ├── use_cases/                # Use Case のテスト
+  ├── adapters/
+  │   ├── cli/                  # CLI コマンドのテスト
+  │   ├── repositories/         # Repository 実装のテスト
+  │   └── gateways/             # Gateway 実装のテスト
+  │       ├── github/
+  │       ├── codeql/
+  │       ├── visualization/
+  │       └── code_counter/
+  └── infrastructure/           # DB接続・設定のテスト
+  ```
 - **関数名**: `test_` プレフィックス + 条件 + 期待結果（例: `test_save_project_new`）。
 
 ## フィクスチャ (conftest.py)
 
 共通のセットアップ処理は `tests/conftest.py` に集約されています。
 - `test_db`: エンジン作成・テーブル作成・セッション生成・クリーンアップを一括管理する。
-- `service`: `test_db` セッションを受け取り、サービスインスタンスを初期化する。
 - **原則**: Arrangeフェーズを簡潔に保つため、共通化できるものはフィクスチャ化すること。
 
 ## カバレッジ基準
 
-- **サービス層**: `mb_scanner/services/` 配下の public メソッドは**100%テスト**すること。
+- **Use Cases 層**: `mb_scanner/use_cases/` 配下の public メソッドは**100%テスト**すること。
+- **Repository 層**: `mb_scanner/adapters/repositories/` の CRUD 操作は**100%テスト**すること。
 - **ケース網羅**: 各メソッドに対し、少なくとも以下の2パターンを確認すること。
   - **正常系**: 期待通りに保存・取得・更新ができるか。
   - **異常・境界系**: 空入力、重複データ、存在しないIDへのアクセス、Cascade削除の挙動など。
@@ -32,28 +46,29 @@
 
 ### モックすべき対象
 
-- **Library Layer**: `mb_scanner/lib/` 配下のクラス（GitHubClient, CodeQLCLI など）
+- **Gateway 層**: `mb_scanner/adapters/gateways/` 配下のクラス（GitHub, CodeQL, visualization）
 - **外部 API 通信**: 実際に HTTP リクエストを送信してはならない
 - **外部コマンド実行**: `subprocess` による CodeQL や git コマンドの実行
 
 ### モックしてはいけない対象
 
 - **Database**: `sqlite:///:memory:` を使用し、SQLAlchemy のセッション自体はモックしないこと（クエリの整合性を確認するため）
-- **Pydantic Models / Data Classes**: 単なるデータ構造は実体を使用する
+- **Pydantic Models**: ドメインエンティティは実体を使用する
 
 ### 実装方法
 
 - **ツール**: `unittest.mock` または `pytest-mock`（`mocker` フィクスチャ）を使用する。
-- **DI**: Service 層のテストでは、コンストラクタや引数で渡される Library クラスを `MagicMock` に置き換える。
+- **DI**: Use Case のテストでは、コンストラクタで受け取る Protocol をモックに置き換える。
 
 ```python
-# 良い例: GitHubClient をモックして Service をテスト
-def test_search_projects(mocker):
-    mock_client = mocker.Mock(spec=GitHubClient)
-    mock_client.search_repositories.return_value = [...]
-    service = ProjectSearchService(client=mock_client)
-    service.execute(...)
-    mock_client.search_repositories.assert_called_once()
+# 良い例: Protocol をモックして Use Case をテスト
+def test_search_and_store(mocker):
+    mock_gateway = mocker.Mock(spec=GitHubGateway)
+    mock_gateway.search_repositories.return_value = [...]
+    mock_repo = mocker.Mock(spec=ProjectRepository)
+    use_case = SearchAndStoreUseCase(gateway=mock_gateway, repository=mock_repo)
+    use_case.execute(...)
+    mock_gateway.search_repositories.assert_called_once()
 ```
 
 ## デバッグのヒント

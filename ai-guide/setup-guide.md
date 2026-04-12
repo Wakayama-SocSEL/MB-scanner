@@ -5,7 +5,7 @@
 | ツール | 用途 | コマンド例 |
 | :--- | :--- | :--- |
 | **uv** | 高速パッケージ管理 | `uv sync`, `uv add`, `uv run` |
-| **just** | タスクランナー | `just fix`, `just typecheck` |
+| **mise** | タスクランナー + ツール管理 | `mise run fix`, `mise run typecheck` |
 | **Python** | ランタイム | 3.13+ |
 | **CodeQL** | 解析エンジン | `codeql database create` |
 
@@ -15,7 +15,7 @@
   - 追加: `uv add <package>`
   - 開発用追加: `uv add --dev <package>`
   - 同期: `uv sync`
-- **タスクランナー**: コマンド実行には `just` を使用すること（例: `just fix`, `just typecheck`）。
+- **タスクランナー**: コマンド実行には `mise` を使用すること（例: `mise run fix`, `mise run typecheck`）。
 
 ## 初回セットアップ / 環境リセット
 
