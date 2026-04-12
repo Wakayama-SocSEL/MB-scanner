@@ -38,14 +38,14 @@ uv run pytest tests/path/to/test.py                 # 特定ファイル
 uv run pytest tests/path/to/test.py::func_name      # 特定テスト関数
 
 # フォーマット・Lint
-just fix
+mise run fix
 
 # 型チェック
-just typecheck
+mise run typecheck
 ```
 
 ## 作業完了時のチェック順序
 
-1. `just fix`
-2. `just typecheck`
+1. `mise run fix`
+2. `mise run typecheck`
 3. `uv run pytest`

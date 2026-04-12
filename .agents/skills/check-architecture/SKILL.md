@@ -15,19 +15,36 @@ argument-hint: [path]
 
 ## チェック項目
 
-### アーキテクチャ
-- [ ] レイヤーの依存方向が `CLI -> Workflows -> Services -> Library/Models` になっているか
-- [ ] ビジネスロジックが Services 層に適切に配置されているか
-- [ ] 外部連携が Library 層に抽象化されているか
+### アーキテクチャ（Clean Architecture 4層構造）
+
+#### 依存方向（`mise run check-arch` で自動検証）
+- [ ] `mise run check-arch` が全契約 PASS するか
+- [ ] domain 層が外部フレームワークを import していないか（pydantic は許可。sqlalchemy, typer, github, matplotlib は禁止）
+- [ ] use_cases が具象アダプターを直接 import していないか（Protocol / Port を介しているか）
+
+#### ドメイン層の純粋性
+- [ ] `domain/entities/` が Pydantic BaseModel のみで構成されているか
+- [ ] `domain/ports/` が Protocol のみで構成されているか
+- [ ] ビジネスロジックが `use_cases/` に集約されているか
+
+#### Composition Root
+- [ ] CLI（`adapters/cli/`）が依存の組み立てを担当しているか
+- [ ] Use Case のコンストラクタに Protocol 経由で注入しているか
 
 ### コーディング規約
 - [ ] `Any` 型を使用していないか
 - [ ] 外部入力・設定には Pydantic、内部データには TypedDict を使用しているか
-- [ ] Pydantic モデルは `mb_scanner/models/` に配置されているか
+- [ ] ドメインモデルは `mb_scanner/domain/entities/` に配置されているか
+- [ ] GitHubリポジトリを表す用語として `Project` を使用しているか（`Repository` は禁止）
 - [ ] ファイル形式（JSON/CSV）の選択が適切か
 
 ### DB設計
-- [ ] GitHubリポジトリを表す用語として `Project` を使用しているか（`Repository` は禁止）
-- [ ] 新しいモデルは `Base` を継承しているか
+- [ ] ORM クラスは `infrastructure/orm/tables.py` に定義されているか
 - [ ] リレーションに `lazy="selectin"` を設定しているか（N+1回避）
-- [ ] スキーマ変更時に `mb_scanner/db/migrations.py` にマイグレーションを追加しているか
+- [ ] スキーマ変更時に `infrastructure/db/migrations.py` にマイグレーションを追加しているか
+
+### 自動検証コマンド
+- `mise run check-arch` — import-linter でレイヤー契約を検証
+- `mise run typecheck` — pyright --strict で型チェック
+- `mise run lint` — ruff check で Lint
+- `mise run check` — 上記全てを一括実行

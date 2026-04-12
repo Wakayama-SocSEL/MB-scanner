@@ -90,10 +90,10 @@ AIによって整理されました。
 
 ```bash
 # 型チェック
-just typecheck
+mise run typecheck
 
 # フォーマット
-just fix
+mise run fix
 ```
 
 ## 使用例

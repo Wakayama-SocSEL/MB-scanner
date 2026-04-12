@@ -8,7 +8,7 @@
 # 不要な場合は空文字列 "" にすると何も実行しません。
 #
 # 例（Python + uv の場合）:
-#   SETUP_COMMANDS="just python-deps"
+#   SETUP_COMMANDS="mise run python-deps"
 #
 # 例（npm の場合）:
 #   SETUP_COMMANDS="npm install"
@@ -16,7 +16,7 @@
 # 例（セットアップ不要な場合）:
 #   SETUP_COMMANDS=""
 # ──────────────────────────────────────────────────────────────────────────
-SETUP_COMMANDS="just python-deps"
+SETUP_COMMANDS="mise run python-deps"
 
 set -euo pipefail
 

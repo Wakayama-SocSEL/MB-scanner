@@ -69,8 +69,8 @@ argument-hint: /start-implementation <作業の説明>
 2. ユーザーからの追加指示は `prompt.md` に追記
 3. 実施内容も `prompt.md` に記録
 4. 作業完了ごとに、型チェック、フォーマットの実施を行なってください。フォーマットは、変更ファイルに限定して実行してください。テストを実装した際は、変更したファイルのみが対象となるようにした上で実行してください。
-   - フォーマット・Lint修正: `just fix`
-   - 型チェック: `just typecheck`
+   - フォーマット・Lint修正: `mise run fix`
+   - 型チェック: `mise run typecheck`
    - テスト実行: `uv run pytest <対象ファイル>`
 
 ## prompt.md のフォーマット
