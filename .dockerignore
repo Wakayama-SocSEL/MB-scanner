@@ -1,0 +1,14 @@
+data/
+outputs/
+result.json
+.venv/
+.git/
+.ruff_cache/
+__pycache__/
+tmp/
+node_modules/
+.claude/
+.agents/
+ai-guide/
+tests/
+*.db

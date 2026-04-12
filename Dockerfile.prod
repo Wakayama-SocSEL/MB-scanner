@@ -1,0 +1,121 @@
+# ==============================================================================
+# Dockerfile.prod — 再現実験用（multi-stage 最適化）
+#
+# 目的:
+#   - 実験を再現可能な形で固定する
+#   - 最終イメージには uv / mise を含めず、Python + venv + ランタイムのみ
+#   - 論文提出時などに docker tag で固定・保存する想定
+#
+# 基本的には日常起動しない。docker compose --profile archive から呼び出す。
+# ==============================================================================
+
+# ==============================================================================
+# Stage 1: mise-base — mise で uv / node / pnpm をインストール
+# ==============================================================================
+FROM debian:bookworm-slim AS mise-base
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl ca-certificates git && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV MISE_YES=1 \
+    MISE_DATA_DIR="/opt/mise" \
+    PATH="/root/.local/bin:/opt/mise/shims:${PATH}"
+
+RUN curl https://mise.run | sh
+
+COPY .mise.toml .
+RUN mise install && \
+    # 最終ステージ用に Node.js ランタイムを固定パスにコピー
+    cp -rL "$(mise where node)" /opt/node-runtime
+
+# ==============================================================================
+# Stage 2: ts-builder — TypeScript ビルド（benchmark/dist/ 生成）
+# ==============================================================================
+FROM mise-base AS ts-builder
+
+WORKDIR /build
+COPY benchmark/ benchmark/
+RUN pnpm --prefix benchmark install --frozen-lockfile && \
+    pnpm --prefix benchmark run build
+
+# ==============================================================================
+# Stage 3: py-deps — Python 依存解決（venv 生成）
+# ==============================================================================
+FROM mise-base AS py-deps
+
+WORKDIR /build
+
+# 依存パッケージのみ先にインストール（Docker レイヤーキャッシュ効率化）
+COPY pyproject.toml uv.lock ./
+RUN uv venv /opt/venv && \
+    UV_PROJECT_ENVIRONMENT=/opt/venv uv sync --frozen --no-dev --no-install-project
+
+# プロジェクト本体をインストール（non-editable）
+COPY mb_scanner/ mb_scanner/
+RUN UV_PROJECT_ENVIRONMENT=/opt/venv uv sync --frozen --no-dev --no-editable
+
+# ==============================================================================
+# Stage 4: final — 最終イメージ（uv / mise は含まない）
+# ==============================================================================
+FROM debian:bookworm-slim AS final
+
+ARG UID=1000
+ARG GID=1000
+ARG USERNAME=scanner
+ARG CODEQL_VERSION=latest
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# --- ランタイムに必要な最小限のパッケージ ---
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        wget \
+        unzip \
+        git \
+        procps \
+        ca-certificates \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# --- CodeQL CLI ---
+RUN if [ "$CODEQL_VERSION" = "latest" ]; then \
+        CODEQL_URL="https://github.com/github/codeql-cli-binaries/releases/latest/download/codeql-linux64.zip"; \
+    else \
+        CODEQL_URL="https://github.com/github/codeql-cli-binaries/releases/download/v${CODEQL_VERSION}/codeql-linux64.zip"; \
+    fi && \
+    wget -q "$CODEQL_URL" -O /tmp/codeql.zip && \
+    unzip -q /tmp/codeql.zip -d /opt && \
+    rm /tmp/codeql.zip && \
+    chmod -R 755 /opt/codeql
+
+# --- Node.js ランタイム（mise-base からコピー）---
+COPY --from=mise-base /opt/node-runtime /opt/node
+
+# --- Python 仮想環境（py-deps からコピー）---
+COPY --from=py-deps /opt/venv /opt/venv
+
+ENV PATH="/opt/codeql:/opt/node/bin:/opt/venv/bin:${PATH}"
+
+# --- アプリケーションファイル ---
+WORKDIR /app
+COPY codeql/ codeql/
+COPY --from=ts-builder /build/benchmark/dist/ benchmark/dist/
+COPY --from=ts-builder /build/benchmark/package.json benchmark/
+
+# data/ と outputs/ はホストから bind mount するためのマウントポイント
+RUN mkdir -p data outputs
+
+# --- 非 root ユーザー ---
+RUN if ! getent group ${GID} > /dev/null 2>&1; then \
+        groupadd -g ${GID} ${USERNAME}; \
+    fi && \
+    useradd --uid ${UID} --gid ${GID} --create-home --shell /bin/bash ${USERNAME} && \
+    chown -R ${USERNAME}:${GID} /app
+
+USER ${USERNAME}
+
+CMD ["mbs", "--help"]
