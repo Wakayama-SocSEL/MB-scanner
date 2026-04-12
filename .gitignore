@@ -27,3 +27,8 @@ codeql/queries
 node_modules/
 benchmark/dist/
 benchmark/node_modules/
+
+# Editor / local tooling
+.vscode/
+.mise/
+.cmux-surface
