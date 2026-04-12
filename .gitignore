@@ -25,3 +25,5 @@ tmp/
 
 codeql/queries
 node_modules/
+benchmark/dist/
+benchmark/node_modules/
