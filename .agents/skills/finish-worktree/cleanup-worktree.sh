@@ -26,6 +26,14 @@ if [[ ! -d "$WORKTREE_DIR" ]]; then
   exit 1
 fi
 
+# サブディレクトリが渡されても動くよう worktree トップに正規化
+WORKTREE_TOP=$(git -C "$WORKTREE_DIR" rev-parse --show-toplevel 2>/dev/null || true)
+if [[ -z "$WORKTREE_TOP" ]]; then
+  echo "Error: $WORKTREE_DIR は git worktree ではありません" >&2
+  exit 1
+fi
+WORKTREE_DIR="$WORKTREE_TOP"
+
 if [[ ! -d "$ORIGINAL_DIR" ]]; then
   echo "Error: original ディレクトリが存在しません: $ORIGINAL_DIR" >&2
   exit 1

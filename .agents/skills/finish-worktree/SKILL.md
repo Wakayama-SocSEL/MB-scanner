@@ -41,7 +41,7 @@ if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then
   echo "Error: upstream が設定されていません。push してください" >&2
   exit 1
 fi
-if [[ -n "$(git log @{u}..HEAD)" ]]; then
+if [[ "$(git rev-list --count @{u}..HEAD)" -gt 0 ]]; then
   echo "Error: 未プッシュの commit があります。/commit で push してください" >&2
   exit 1
 fi
@@ -53,8 +53,12 @@ fi
 # 引数 or branch 名から推定（feature/foo → foo）
 SLUG="${1:-$(git branch --show-current | sed 's|.*/||')}"
 
-# worktree のフルパス
-WORKTREE_DIR="$(pwd)"
+# worktree のトップディレクトリを取得（サブディレクトリから実行されてもOK）
+WORKTREE_DIR="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [[ -z "$WORKTREE_DIR" ]]; then
+  echo "Error: git worktree のトップを特定できません。worktree 内から実行してください" >&2
+  exit 1
+fi
 
 # ORIGINAL_REPO_DIR が未設定なら git worktree list から自動検出
 if [[ -z "${ORIGINAL_REPO_DIR:-}" ]]; then

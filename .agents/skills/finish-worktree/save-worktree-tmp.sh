@@ -21,6 +21,14 @@ if [[ -z "$WORK_NAME" ]] || [[ -z "$WORKTREE_DIR" ]] || [[ -z "$ORIGINAL_DIR" ]]
   exit 1
 fi
 
+# サブディレクトリが渡されても動くよう worktree トップに正規化
+if [[ -d "$WORKTREE_DIR" ]]; then
+  WORKTREE_TOP=$(git -C "$WORKTREE_DIR" rev-parse --show-toplevel 2>/dev/null || true)
+  if [[ -n "$WORKTREE_TOP" ]]; then
+    WORKTREE_DIR="$WORKTREE_TOP"
+  fi
+fi
+
 SRC_DIR="$WORKTREE_DIR/tmp"
 DEST_BASE="$ORIGINAL_DIR/tmp"
 
