@@ -25,8 +25,8 @@ tmp/
 
 codeql/queries
 node_modules/
-benchmark/dist/
-benchmark/node_modules/
+mb-analyzer/**/dist/
+mb-analyzer/**/node_modules/
 
 # Editor / local tooling
 .vscode/

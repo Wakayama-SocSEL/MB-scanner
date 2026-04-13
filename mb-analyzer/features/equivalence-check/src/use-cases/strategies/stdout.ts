@@ -4,8 +4,8 @@
  * 戦略1: console.log の出力を比較する戦略。
  */
 
-import { executeCode } from "../sandbox/executor";
-import type { CompareResult, Strategy } from "../types";
+import { executeCode } from "../../infrastructure/sandbox/executor";
+import type { CompareResult, Strategy } from "../../domain/types";
 
 function hasConsoleLog(code: string): boolean {
   return /console\s*\.\s*log\s*\(/.test(code);

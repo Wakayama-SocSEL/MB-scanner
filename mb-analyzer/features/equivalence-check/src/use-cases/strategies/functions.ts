@@ -4,8 +4,8 @@
  * 戦略2: FUNCTION_* の戻り値を比較する戦略。
  */
 
-import { executeCode } from "../sandbox/executor";
-import type { CompareResult, ExecuteResult, Strategy } from "../types";
+import { executeCode } from "../../infrastructure/sandbox/executor";
+import type { CompareResult, ExecuteResult, Strategy } from "../../domain/types";
 
 function extractFunctionDeclarations(code: string): string[] {
   const funcPattern = /\bfunction\s+(FUNCTION_\w+)\s*\(/g;

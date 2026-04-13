@@ -4,8 +4,8 @@
  * 戦略3: VAR_* 変数の最終状態を比較する戦略。
  */
 
-import { executeCode } from "../sandbox/executor";
-import type { CompareResult, ExecuteResult, Strategy } from "../types";
+import { executeCode } from "../../infrastructure/sandbox/executor";
+import type { CompareResult, ExecuteResult, Strategy } from "../../domain/types";
 
 function extractVarDeclarations(code: string): string[] {
   const varPattern = /\bvar\s+(VAR_\w+)/g;

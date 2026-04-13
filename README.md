@@ -178,7 +178,13 @@ mb_scanner/
 │   └── gateways/             # 外部サービス連携（GitHub, CodeQL, 可視化）
 └── infrastructure/           # フレームワーク（ORM, DB接続, 設定）
 
-benchmark/                    # TypeScript ベンチマーク実行環境
+mb-analyzer/                  # TypeScript analyzer monorepo (pnpm workspace)
+├── apps/
+│   └── equivalence-runner/   # Python から起動される CLI (composition root)
+└── features/                 # Package by Feature + 内部に Clean Architecture 4 層
+    ├── equivalence-check/    # slow/fast コードの等価性チェック
+    ├── pattern-mining/       # (将来) C1〜C4 条件抽出
+    └── rule-codegen/         # (将来) ts-eslint rule 生成
 codeql/                       # CodeQL クエリ設定
 data/                         # ランタイムデータ（DB, クローン, CodeQL DB）
 outputs/                      # クエリ結果・可視化出力

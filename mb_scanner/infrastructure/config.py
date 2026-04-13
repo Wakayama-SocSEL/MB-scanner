@@ -148,7 +148,10 @@ class Settings(BaseSettings):
     @property
     def effective_benchmark_runner_js_path(self) -> Path:
         """ベンチマークランナーJSファイルのパスを返す"""
-        return self.benchmark_runner_js_path or Path.cwd() / "benchmark" / "dist" / "runner_benchmark.js"
+        return (
+            self.benchmark_runner_js_path
+            or Path.cwd() / "mb-analyzer" / "apps" / "equivalence-runner" / "dist" / "index.js"
+        )
 
     def get_codeql_output_path(self, project_name: str, query_file: Path) -> Path:
         """プロジェクト名とクエリファイルからCodeQLクエリ実行結果の出力パスを生成する

@@ -1,5 +1,5 @@
 /**
- * runner.ts
+ * index.ts
  *
  * slow.js と fast.js を受け取り、等価性チェックの結果を JSON で出力するエントリポイント。
  *
@@ -9,14 +9,14 @@
 
 import fs from "fs";
 import path from "path";
-import { check } from "./checker";
+import { check } from "@mb-analyzer/equivalence-check";
 
 const slowPath = process.argv[2];
 const fastPath = process.argv[3];
 const timeoutMs = parseInt(process.argv[4], 10) || 100000;
 
 if (!slowPath || !fastPath) {
-  console.error("Usage: node runner.js <slow.js> <fast.js> [timeout_ms]");
+  console.error("Usage: node index.js <slow.js> <fast.js> [timeout_ms]");
   process.exit(1);
 }
 

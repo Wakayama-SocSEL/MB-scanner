@@ -63,7 +63,7 @@ uv run pyright
 description = "TypeScript の型チェックを実行する"
 run = """
 echo "Running TypeScript type check..."
-pnpm --prefix benchmark run typecheck
+pnpm --prefix mb-analyzer -r run typecheck
 """
 
 # =============================================================================
@@ -88,34 +88,34 @@ run = "uv run lint-imports"
 
 [tasks.check]
 description = "Lint + 型チェック + テスト + アーキテクチャ検証を一括実行する"
-depends = ["lint", "typecheck", "test", "check-arch"]
+depends = ["lint", "typecheck", "typecheck-ts", "test", "check-arch"]
 run = ""
 
 # =============================================================================
 # TypeScript ビルド
 # =============================================================================
 
-[tasks.build-benchmark-ts]
-description = "benchmark の TypeScript を単発ビルドする"
+[tasks.build-analyzer-ts]
+description = "mb-analyzer の TypeScript を単発ビルドする"
 run = """
 echo "Building TypeScript..."
-pnpm --prefix benchmark run build
+pnpm --prefix mb-analyzer run build
 """
 
-[tasks.watch-benchmark-ts]
-description = "benchmark の TypeScript を watch モードでビルドする"
+[tasks.watch-analyzer-ts]
+description = "mb-analyzer の TypeScript を watch モードでビルドする"
 run = """
 echo "Watching TypeScript build..."
-pnpm --prefix benchmark run build:watch
+pnpm --prefix mb-analyzer --filter @mb-analyzer/equivalence-runner run build:watch
 """
 
-[tasks.stop-benchmark-watch]
-description = "benchmark の TypeScript watch を停止する"
+[tasks.stop-analyzer-watch]
+description = "mb-analyzer の TypeScript watch を停止する"
 run = """
 echo "Stopping TypeScript watch processes..."
 pkill -f 'node build.mjs --watch' || true
-pkill -f 'pnpm --prefix benchmark run build:watch' || true
-pkill -f 'esbuild .*runner.ts.*--watch' || true
+pkill -f '@mb-analyzer/equivalence-runner run build:watch' || true
+pkill -f 'esbuild .*src/index.ts.*--watch' || true
 """
 
 # =============================================================================

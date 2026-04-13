@@ -6,7 +6,7 @@
 
 import vm from "vm";
 import { createStabilizedMath, createStabilizedDate } from "./stabilizer";
-import type { ExecuteResult } from "../types";
+import type { ExecuteResult } from "../../domain/types";
 
 type ConsoleLike = {
   log: (...args: unknown[]) => void;

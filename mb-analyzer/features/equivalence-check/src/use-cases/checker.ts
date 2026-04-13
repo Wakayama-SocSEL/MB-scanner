@@ -7,7 +7,7 @@
 import { stdoutStrategy } from "./strategies/stdout";
 import { functionsStrategy } from "./strategies/functions";
 import { variablesStrategy } from "./strategies/variables";
-import type { CheckResult, CompareResult, CompareStatus, Strategy } from "./types";
+import type { CheckResult, CompareResult, CompareStatus, Strategy } from "../domain/types";
 
 function determineOverallStatus(results: CompareResult[]): CompareStatus | "skipped" {
   if (results.length === 0) return "error";

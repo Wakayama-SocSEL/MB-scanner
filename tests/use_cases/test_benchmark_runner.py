@@ -9,7 +9,14 @@ from mb_scanner.use_cases.benchmark_runner import (
     run_equivalence_check,
 )
 
-RUNNER_JS_PATH = Path(__file__).parent.parent.parent / "benchmark" / "dist" / "runner_benchmark.js"
+RUNNER_JS_PATH = (
+    Path(__file__).parent.parent.parent
+    / "mb-analyzer"
+    / "apps"
+    / "equivalence-runner"
+    / "dist"
+    / "index.js"
+)
 
 
 @pytest.fixture()

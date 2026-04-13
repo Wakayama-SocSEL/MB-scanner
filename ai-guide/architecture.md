@@ -100,10 +100,18 @@ mb_scanner/
 └── core/                     # 横断的ユーティリティ
     └── cleanup.py
 
-benchmark/                    # TypeScript/Node.js（ルート直下、モノレポ型）
-├── src/                      # TS ソース
-├── dist/                     # ビルド成果物
-└── package.json
+mb-analyzer/                  # TypeScript analyzer monorepo (pnpm workspace)
+├── apps/
+│   └── equivalence-runner/   # Python から起動される CLI (composition root)
+│       ├── src/index.ts
+│       └── dist/index.js     # ビルド成果物 (esbuild 単一 bundle)
+├── features/                 # Package by Feature + 内部に CA 4 層
+│   ├── equivalence-check/    # slow/fast コードの等価性チェック
+│   │   └── src/{domain,use-cases,infrastructure}/
+│   ├── pattern-mining/       # (将来) C1〜C4 条件抽出
+│   └── rule-codegen/         # (将来) ts-eslint rule 生成
+├── pnpm-workspace.yaml
+└── tsconfig.base.json
 
 codeql/                       # CodeQL クエリ設定
 tests/                        # テスト（CA 構造をミラー）
@@ -169,15 +177,16 @@ tests/                        # テスト（CA 構造をミラー）
 
 #### サンドボックス環境のカスタマイズ
 
-- **安定化処理の追加**: `benchmark/sandbox/stabilizer.ts` に新しい固定化ロジックを追加する。
-- **サンドボックスへの統合**: `sandbox/executor.ts` で安定化処理を適用する。
+- **安定化処理の追加**: `mb-analyzer/features/equivalence-check/src/infrastructure/sandbox/stabilizer.ts` に新しい固定化ロジックを追加する。
+- **サンドボックスへの統合**: 同 feature の `infrastructure/sandbox/executor.ts` で安定化処理を適用する。
 
 #### 比較ストラテジーの追加
 
-1. `benchmark/strategies/` に新ストラテジークラスを作成（`canApply()`, `compare()` 実装）
-2. `benchmark/runner.ts` で戦略リストに追加
-3. `mb_scanner/domain/entities/benchmark.py` の `comparison_method` Literal に追加
-4. テスト追加（`tests/use_cases/test_benchmark_runner.py`）
+1. `mb-analyzer/features/equivalence-check/src/use-cases/strategies/` に新ストラテジーを作成（`canApply()`, `compare()` 実装）
+2. `mb-analyzer/features/equivalence-check/src/use-cases/checker.ts` で戦略リストに追加
+3. `mb-analyzer/features/equivalence-check/src/index.ts` の public export に含める（必要なら）
+4. `mb_scanner/domain/entities/benchmark.py` の `comparison_method` Literal に追加
+5. テスト追加（`tests/use_cases/test_benchmark_runner.py`）
 
 ---
 
