@@ -1,6 +1,6 @@
 ---
 name: start-worktree
-description: git worktreeで新しいフィーチャーブランチを作成し、just python-depsを実行後にcmuxの右ペインでClaudeを起動する。ブランチを切って実装を始めたい、worktreeでfeatureを開発したいときに使う。
+description: git worktreeで新しいフィーチャーブランチを作成し、mise run python-depsを実行後にcmuxの右ペインでClaudeを起動する。ブランチを切って実装を始めたい、worktreeでfeatureを開発したいときに使う。
 argument-hint: <ブランチ名 または 実装したい機能の説明>
 ---
 
@@ -39,7 +39,7 @@ JSONから `worktree_dir` / `original_dir` / `branch` を取得する。
 .claude/skills/start-worktree/open-in-cmux.sh "<worktree_dir>" "<original_dir>"
 ```
 
-- `SETUP_COMMANDS`（`just python-deps`）実行後、Claudeが起動する
+- `SETUP_COMMANDS`（`mise run python-deps`）実行後、Claudeが起動する
 - 起動後のセッションで `/start-implementation` を使って計画・実装を行う
 
 ## 前提条件

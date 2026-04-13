@@ -22,6 +22,14 @@ WORKTREE_DIR="../${REPO_NAME}-${SAFE_FEATURE}"
 git worktree add "$WORKTREE_DIR" -b "$FEATURE"
 WORKTREE_ABS="$(cd "$WORKTREE_DIR" && pwd)"
 
+# .vscode/settings.json を生成（Pylance が worktree の .venv を認識するため）
+mkdir -p "$WORKTREE_ABS/.vscode"
+cat > "$WORKTREE_ABS/.vscode/settings.json" << 'VSCODE_EOF'
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"
+}
+VSCODE_EOF
+
 echo "{"
 echo "  \"worktree_dir\": \"$WORKTREE_ABS\","
 echo "  \"original_dir\": \"$ORIGINAL_DIR\","

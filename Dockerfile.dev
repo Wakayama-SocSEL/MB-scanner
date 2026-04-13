@@ -1,0 +1,73 @@
+# ==============================================================================
+# Dockerfile.dev — 日常開発用（1ステージ構成）
+#
+# 目的:
+#   - ソースをホストから bind mount してコンテナ内で開発する
+#   - mise 経由で uv / node / pnpm をバージョン固定インストール
+#   - 再現性よりもイテレーション速度を優先
+#
+# 注意:
+#   - 再現実験用の固定イメージが欲しい場合は Dockerfile.prod を使うこと
+# ==============================================================================
+FROM debian:bookworm-slim
+
+ARG UID=1000
+ARG GID=1000
+ARG USERNAME=vscode
+ARG CODEQL_VERSION=latest
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# --- システム依存パッケージ ---
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        wget \
+        tar \
+        git \
+        unzip \
+        gnupg \
+        procps \
+        build-essential \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# --- mise をインストール（system-wide）---
+# uv / node / pnpm は .mise.toml から mise 経由で入れる
+ENV MISE_YES=1
+RUN curl https://mise.run | sh && \
+    mv /root/.local/bin/mise /usr/local/bin/mise
+
+# --- CodeQL CLI ---
+RUN if [ "$CODEQL_VERSION" = "latest" ]; then \
+        CODEQL_URL="https://github.com/github/codeql-cli-binaries/releases/latest/download/codeql-linux64.zip"; \
+    else \
+        CODEQL_URL="https://github.com/github/codeql-cli-binaries/releases/download/v${CODEQL_VERSION}/codeql-linux64.zip"; \
+    fi && \
+    wget -q "$CODEQL_URL" -O /tmp/codeql.zip && \
+    unzip -q /tmp/codeql.zip -d /opt && \
+    rm /tmp/codeql.zip && \
+    chmod -R 755 /opt/codeql
+
+ENV PATH="/opt/codeql:${PATH}"
+
+# --- 非 root ユーザー ---
+RUN if ! getent group ${GID} > /dev/null 2>&1; then \
+        groupadd -g ${GID} ${USERNAME}; \
+    fi && \
+    useradd --uid ${UID} --gid ${GID} --create-home --shell /bin/bash ${USERNAME}
+
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}/workspace
+
+# mise のツールはユーザー領域に入れる（コンテナ再起動で消えないよう bind mount 推奨）
+ENV MISE_DATA_DIR="/home/${USERNAME}/.local/share/mise" \
+    MISE_CACHE_DIR="/home/${USERNAME}/.cache/mise" \
+    PATH="/home/${USERNAME}/.local/share/mise/shims:${PATH}"
+
+RUN mkdir -p ${MISE_DATA_DIR} ${MISE_CACHE_DIR}
+
+CMD ["/bin/bash"]

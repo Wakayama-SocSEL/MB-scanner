@@ -8,125 +8,185 @@ MB-Scannerは、GitHub上の多数のJavaScriptリポジトリに対してCodeQL
 
 ## アーキテクチャ設計
 
-**Clean Architecture** の原則に基づいた階層化アーキテクチャを採用しています。依存の方向は `CLI -> Workflows -> Services -> Library/Models` を厳守すること。
+**実用的 Clean Architecture（Pragmatic CA）** を採用しています。依存の方向は常に内側に向かい、内側は外側を知りません。
 
 ### レイヤー構造
 
-1. **CLI Layer** (`mb_scanner/cli/`)
-   - ユーザーインターフェースを担当。Typerを使用。
-   - Workflowsを呼び出し、引数解析と表示を行う。
-2. **Workflows Layer** (`mb_scanner/workflows/`)
-   - 複数のServicesやLibraryを組み合わせた複合処理フロー。
-   - トランザクション管理とエラーハンドリングを集約する。
-3. **Services Layer** (`mb_scanner/services/`)
-   - ビジネスロジック（CRUD操作、検索、集計）を提供。単一責任の原則に基づく。
-4. **Library Layer** (`mb_scanner/lib/`)
-   - 外部ツール（GitHub API, CodeQL CLI, Matplotlib）との連携を抽象化。
-5. **Data Access Layer** (`mb_scanner/db/`, `mb_scanner/models/`)
-   - SQLAlchemyを使用したデータ永続化とモデル定義。
+```
+infrastructure（最外層）→ adapters → use_cases → domain（最内層）
+  依存は常に内側に向かう。内側は外側を知らない。
+```
+
+1. **Domain 層** (`mb_scanner/domain/`)
+   - ドメインモデル（Pydantic BaseModel）とポート（Protocol）を定義。
+   - 許可する外部依存は `pydantic` のみ。`sqlalchemy`, `typer`, `github`, `matplotlib` は禁止。
+2. **Use Cases 層** (`mb_scanner/use_cases/`)
+   - ビジネスロジックを集約。Protocol 経由で依存注入（DI）を受ける。
+   - domain にのみ依存し、具象アダプターを直接 import しない。
+3. **Adapters 層** (`mb_scanner/adapters/`)
+   - 入力アダプター（CLI）と出力アダプター（repositories, gateways）。
+   - CLI は **composition root** として依存の組み立てを担当。
+   - domain + use_cases に依存。infrastructure へのアクセスも許可（CLI での DI 組み立て、Repository での ORM 使用）。
+4. **Infrastructure 層** (`mb_scanner/infrastructure/`)
+   - フレームワーク・ドライバー層。ORM 定義、DB 接続、設定、ロギング。
+
+### 依存ルールの自動検証
+
+`import-linter` で依存方向を自動チェックしています。
+
+```bash
+mise run check-arch   # import-linter でレイヤー契約を検証
+```
+
+**契約:**
+- **レイヤー契約**: infrastructure → adapters → use_cases → domain の順のみ許可
+- **ドメイン禁止契約**: domain 層が `sqlalchemy`, `typer`, `github`, `matplotlib` を import していないことを保証
+- **例外**: `adapters → infrastructure` は `ignore_imports` で許可（CLI=composition root, repositories=ORM 実装のため）
 
 ### ディレクトリ構造
 
 ```text
 mb_scanner/
-├── cli/                    # CLI コマンド (Entry Points)
-│   ├── search.py          # リポジトリ検索
-│   ├── codeql.py          # CodeQL DB作成・クエリ実行
-│   ├── visualize.py       # 可視化
-│   ├── benchmark.py       # ベンチマーク等価性チェック
-│   └── migrate.py         # DBマイグレーション
-├── workflows/             # 複合処理フロー (Transaction Boundary)
-│   ├── search_and_store.py
-│   ├── codeql_database_creation.py
-│   └── codeql_query_execution.py
-├── services/              # ビジネスロジック
-│   ├── project_service.py
-│   ├── visualization_service.py
-│   └── benchmark_runner.py
-├── lib/                   # 外部連携アダプタ
-│   ├── codeql/            # CodeQL CLI wrapper
-│   ├── github/            # GitHub API client (PyGithub)
-│   └── visualization/     # グラフ描画 (Matplotlib)
-├── resources/             # 外部実行環境用リソース
-│   └── benchmark/         # ベンチマーク実行用JavaScriptファイル
-│       ├── sandbox.js     # Node.js サンドボックス環境設定
-│       ├── stabilizers.js # 非決定的関数の固定化
-│       └── strategies/    # 比較用ルール
-├── db/                    # DB接続・セッション管理
-├── models/                # SQLAlchemyモデル定義
-│   ├── project.py         # Project, Topic
-│   ├── sarif.py           # 解析結果モデル
-│   └── benchmark.py       # ベンチマーク結果モデル
-└── core/                  # 設定・ロギング
-    └── config.py          # Pydantic Settings
+├── domain/                   # === Entities 層（最内層）===
+│   ├── entities/             # Pydantic BaseModel によるドメインモデル
+│   │   ├── project.py        # Project, Topic
+│   │   ├── benchmark.py      # EquivalenceResult, EquivalenceSummary
+│   │   ├── sarif.py          # SARIF フォーマット
+│   │   ├── extraction.py     # コード抽出結果
+│   │   └── summary.py        # QuerySummary
+│   └── ports/                # Protocol（インターフェース定義）
+│       ├── project_repository.py   # ProjectRepository Protocol
+│       ├── topic_repository.py     # TopicRepository Protocol
+│       ├── github_gateway.py       # GitHubGateway + SearchCriteria + GitHubRepositoryDTO
+│       ├── codeql_gateway.py       # CodeQLCLIPort, CodeQLDatabaseManagerPort, CodeQLResultAnalyzerPort
+│       └── repository_cloner.py    # RepositoryClonerPort
+│
+├── use_cases/                # === Use Cases 層 ===
+│   ├── search_and_store.py         # GitHubGateway + ProjectRepository を注入
+│   ├── codeql_database_creation.py # RepositoryClonerPort + CodeQLDatabaseManagerPort を注入
+│   ├── codeql_query_execution.py   # CodeQLCLIPort + CodeQLDatabaseManagerPort + CodeQLResultAnalyzerPort を注入
+│   ├── benchmark_runner.py         # runner_js_path を keyword-only 引数で外部注入
+│   └── visualization.py            # ProjectRepository を注入
+│
+├── adapters/                 # === Interface Adapters 層 ===
+│   ├── cli/                  # 入力アダプター（Typer CLI = composition root）
+│   │   ├── __init__.py       # Typer アプリ統合 + main()
+│   │   ├── codeql/           # サブパッケージ（create_db, query, summary, extract）
+│   │   ├── benchmark.py
+│   │   ├── count_lines.py
+│   │   ├── github.py
+│   │   ├── migrate.py
+│   │   ├── search.py
+│   │   └── visualize.py
+│   ├── repositories/         # DB アダプター（domain/ports/ の Protocol を実装）
+│   │   ├── sqlalchemy_project_repo.py
+│   │   └── sqlalchemy_topic_repo.py
+│   └── gateways/             # 外部連携アダプター
+│       ├── github/           # PyGithub 実装（client, search, clone, schema）
+│       ├── codeql/           # CodeQL CLI 実装（command, database, analyzer, sarif）
+│       ├── visualization/    # matplotlib 実装（boxplot, scatter_plot）
+│       └── code_counter/     # JS行数カウンタ（js_counter）
+│
+├── infrastructure/           # === Frameworks & Drivers 層（最外層）===
+│   ├── orm/                  # SQLAlchemy ORM
+│   │   ├── base.py           # SQLAlchemy Base
+│   │   └── tables.py         # Declarative ORM クラス（ProjectORM, TopicORM）
+│   ├── db/                   # DB 接続・セッション管理
+│   │   ├── session.py
+│   │   └── migrations.py
+│   ├── config.py             # pydantic-settings（Settings クラス）
+│   └── logging_config.py
+│
+└── core/                     # 横断的ユーティリティ
+    └── cleanup.py
+
+mb-analyzer/                  # TypeScript analyzer monorepo (pnpm workspace)
+├── apps/
+│   └── equivalence-runner/   # Python から起動される CLI (composition root)
+│       ├── src/index.ts
+│       └── dist/index.js     # ビルド成果物 (esbuild 単一 bundle)
+├── features/                 # Package by Feature + 内部に CA 4 層
+│   ├── equivalence-check/    # slow/fast コードの等価性チェック
+│   │   └── src/{domain,use-cases,infrastructure}/
+│   ├── pattern-mining/       # (将来) C1〜C4 条件抽出
+│   └── rule-codegen/         # (将来) ts-eslint rule 生成
+├── pnpm-workspace.yaml
+└── tsconfig.base.json
+
+codeql/                       # CodeQL クエリ設定
+tests/                        # テスト（CA 構造をミラー）
+├── domain/entities/
+├── use_cases/
+├── adapters/{cli,repositories,gateways}/
+└── infrastructure/{db,test_config,test_logging_config}/
 ```
 
 ### データフロー
 
-1. **検索・保存**: GitHub API検索 → 重複排除 → DB保存 (`SearchAndStoreWorkflow`)
-2. **解析準備**: リポジトリClone → CodeQL DB作成 (`CodeQLDatabaseCreationWorkflow`)
-3. **クエリ実行**: クエリ実行 → SARIF解析 → 結果保存 (`CodeQLQueryExecutionWorkflow`)
-4. **可視化**: DB集計 → グラフ生成 (`VisualizationService`)
+1. **検索・保存**: GitHub API検索 → 重複排除 → DB保存 (`SearchAndStoreUseCase`)
+2. **解析準備**: リポジトリClone → CodeQL DB作成 (`CodeQLDatabaseCreationUseCase`)
+3. **クエリ実行**: クエリ実行 → SARIF解析 → 結果保存 (`CodeQLQueryExecutionUseCase`)
+4. **可視化**: DB集計 → グラフ生成 (`VisualizationUseCase`)
+5. **ベンチマーク**: Node.js ランナー実行 → 等価性判定 (`BenchmarkRunner`)
 
 ---
 
 ## 新機能追加ガイド
 
-アーキテクチャのレイヤー構造（CLI -> Workflows -> Services -> Lib）を遵守すること。
+アーキテクチャの CA レイヤー構造（domain → use_cases → adapters → infrastructure）を遵守すること。
 
 ### 1. 新しい CLI コマンドの追加
 
-1. `mb_scanner/cli/` に新しいPythonファイルを作成する。
+1. `mb_scanner/adapters/cli/` に新しいPythonファイルを作成する。
 2. `Typer` を使用してコマンドと引数を定義する。
-3. ビジネスロジックが複雑な場合は `mb_scanner/workflows/` に新しいWorkflowクラスを作成する。
-4. `mb_scanner/cli/__init__.py` に新しいコマンドを登録する。
+3. CLI 内で use_case のインスタンスを組み立て（composition root）、実行する。
+4. `mb_scanner/adapters/cli/__init__.py` に新しいコマンドを登録する。
 
-### 2. 新しい検索条件の追加
+### 2. 新しいドメインモデルの追加
 
-1. `mb_scanner/lib/github/schema.py` の `SearchCriteria` クラスにフィールドを追加する。
-2. `mb_scanner/lib/github/search.py` でGitHub APIのクエリ文字列への変換ロジックを実装する。
-3. `mb_scanner/cli/search.py` の引数定義を更新する。
+1. `mb_scanner/domain/entities/` に Pydantic BaseModel を定義する。
+2. 外部連携が必要な場合は `mb_scanner/domain/ports/` に Protocol を定義する。
+3. `mb_scanner/adapters/` で Protocol の具象実装を作成する。
 
-### 3. 新しい可視化の追加
+### 3. 新しい Use Case の追加
 
-1. `mb_scanner/lib/visualization/` に新しいプロット生成モジュールを作成する。
-2. `mb_scanner/services/visualization_service.py` にデータ取得・加工ロジックを追加する。
-3. `mb_scanner/cli/visualize.py` に新しいサブコマンドを追加する。
+1. `mb_scanner/use_cases/` に新しいモジュールを作成する。
+2. コンストラクタで Protocol を受け取り、具象実装を直接 import しない。
+3. CLI の composition root で具象実装を注入する。
 
-### 4. データベーススキーマの変更
+### 4. 新しい検索条件の追加
 
-1. `mb_scanner/models/` 内の該当モデルクラスを変更する。
-2. `mb_scanner/db/migrations.py` にマイグレーション処理（ALTER TABLE等）を追加する。
-   - ※Alembicは使用していないため、手動またはスクリプトによる更新が必要。
-3. `mbs migrate` コマンドで既存のデータベースを更新する。
+1. `mb_scanner/domain/ports/github_gateway.py` の `SearchCriteria` にフィールドを追加する。
+2. `mb_scanner/adapters/gateways/github/search.py` でGitHub APIのクエリ文字列への変換ロジックを実装する。
+3. `mb_scanner/adapters/cli/search.py` の引数定義を更新する。
 
-### 5. ベンチマーク機能の拡張
+### 5. 新しい可視化の追加
 
-ベンチマークの等価性チェック機能の拡張方法。
+1. `mb_scanner/adapters/gateways/visualization/` に新しいプロット生成モジュールを作成する。
+2. `mb_scanner/use_cases/visualization.py` にデータ取得・加工ロジックを追加する。
+3. `mb_scanner/adapters/cli/visualize.py` に新しいサブコマンドを追加する。
+
+### 6. データベーススキーマの変更
+
+1. `mb_scanner/infrastructure/orm/tables.py` の該当 ORM クラスを変更する。
+2. `mb_scanner/domain/entities/` の対応するドメインモデルも更新する。
+3. `mb_scanner/infrastructure/db/migrations.py` にマイグレーション処理を追加する。
+4. `mbs migrate` コマンドで既存のデータベースを更新する。
+
+### 7. ベンチマーク機能の拡張
 
 #### サンドボックス環境のカスタマイズ
 
-- **安定化処理の追加**: `mb_scanner/resources/benchmark/stabilizers.js` に新しい固定化ロジックを追加する。
-- **サンドボックスへの統合**: `sandbox.js` の `createSandbox` 関数で安定化処理を適用する。
-- **設計原則**: 安定化ロジックは `stabilizers.js` に分離し、実行のたびに同じ結果が得られるようシード値・固定値を使用すること。
+- **安定化処理の追加**: `mb-analyzer/features/equivalence-check/src/infrastructure/sandbox/stabilizer.ts` に新しい固定化ロジックを追加する。
+- **サンドボックスへの統合**: 同 feature の `infrastructure/sandbox/executor.ts` で安定化処理を適用する。
 
-#### 比較ストラテジーのアーキテクチャ
+#### 比較ストラテジーの追加
 
-現在の実装（2026年2月）:
-- 全戦略実行: 適用可能な全ての戦略を実行し、結果を `strategy_results` 配列に格納
-- stdout戦略の特別扱い: 適用可能なら他の戦略を実行せず即返し
-- ステータス判定: 全て"equal"なら"equal"、1つでも"not_equal"なら"not_equal"
-
-データフロー:
-1. **Node.js側** (`runner.js`): 各戦略を実行し、結果をJSON出力
-2. **Python側** (`benchmark_runner.py`): JSONをパースして `EquivalenceResult` に変換
-3. **モデル**: `StrategyResult`（個別戦略）、`EquivalenceResult`（総合結果）
-
-新しい戦略の追加手順:
-1. `strategies/` に新ストラテジークラスを作成（`canApply()`, `compare()` 実装）
-2. `runner.js` で戦略リストに追加
-3. `models/benchmark.py` の `comparison_method` Literal に追加
-4. テスト追加（`tests/services/test_benchmark_runner.py`）
+1. `mb-analyzer/features/equivalence-check/src/use-cases/strategies/` に新ストラテジーを作成（`canApply()`, `compare()` 実装）
+2. `mb-analyzer/features/equivalence-check/src/use-cases/checker.ts` で戦略リストに追加
+3. `mb-analyzer/features/equivalence-check/src/index.ts` の public export に含める（必要なら）
+4. `mb_scanner/domain/entities/benchmark.py` の `comparison_method` Literal に追加
+5. テスト追加（`tests/use_cases/test_benchmark_runner.py`）
 
 ---
 
@@ -145,8 +205,8 @@ mb_scanner/
 | **内部データ構造** | `TypedDict` | バリデーション不要で型ヒントのみ必要な場合 |
 
 モデルの配置ルール:
-- **Pydanticモデル**: `mb_scanner/models/` に配置する。
-- **TypedDict**: 原則として使用するモジュール内に定義する。複数モジュールで再利用する場合のみ `models/` へ移動する。
+- **ドメインモデル（Pydantic BaseModel）**: `mb_scanner/domain/entities/` に配置する。
+- **TypedDict**: 原則として使用するモジュール内に定義する。複数モジュールで再利用する場合のみ `domain/entities/` へ移動する。
 
 ### ファイル形式の選択
 
@@ -161,8 +221,9 @@ mb_scanner/
 
 ### 静的解析ツール
 
-- **Linter/Formatter**: `ruff`（`just fix` で実行）
-- **Type Checker**: `pyright`（`just typecheck` で実行）
+- **Linter/Formatter**: `ruff`（`mise run fix` で実行）
+- **Type Checker**: `pyright`（`mise run typecheck` で実行）
+- **Architecture**: `import-linter`（`mise run check-arch` で実行）
 
 ---
 
@@ -171,7 +232,7 @@ mb_scanner/
 ### 技術スタック
 
 - **RDBMS**: SQLite（サーバーレス、バッチ処理の進捗管理に適しているため）
-- **ORM**: SQLAlchemy（宣言的マッピング）
+- **ORM**: SQLAlchemy（宣言的マッピング、`infrastructure/orm/tables.py`）
 
 ### テーブル設計
 
@@ -194,11 +255,13 @@ mb_scanner/
 
 ### SQLAlchemy 実装詳細
 
-- すべてのモデルは `Base` を継承し、`Base.metadata.create_all(bind=engine)` で生成する。
-- リレーション: `Project.topics` / `Topic.projects`、`secondary="project_topics"`、`lazy="selectin"`（N+1回避）
-- DB初期化: `mb_scanner.db.session.init_db()` を呼び出す。
-- セッション: 操作時は `SessionLocal()` からサービス層（`ProjectService` など）を経由してアクセスする。
-- **命名規則**: GitHubリポジトリを表す用語は `Project` を使用すること（Repositoryパターンとの混同を避けるため）。
+- ORM モデルは `infrastructure/orm/tables.py` に定義（`ProjectORM`, `TopicORM`）。
+- ドメインモデル（`domain/entities/project.py` の `Project`, `Topic`）は純粋な Pydantic BaseModel。
+- Repository 実装（`adapters/repositories/`）内で ORM ↔ domain の変換を行う。
+- リレーション: `ProjectORM.topics` / `TopicORM.projects`、`secondary="project_topics"`、`lazy="selectin"`（N+1回避）
+- DB初期化: `mb_scanner.infrastructure.db.session.init_db()` を呼び出す。
+- セッション: `SessionLocal()` から Repository 経由でアクセスする。
+- **命名規則**: GitHubリポジトリを表す用語は `Project` を使用すること（Repository パターンとの混同を避けるため）。
 
 ### 運用上の注意
 

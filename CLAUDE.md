@@ -1,1 +1,1 @@
-/Users/tomoya-n/dev/research/MB-scanner/main-feature-add-skills/AGENTS.md
+AGENTS.md

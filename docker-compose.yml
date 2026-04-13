@@ -1,13 +1,21 @@
 services:
-  app:
+  # ===========================================================================
+  # dev — 日常開発用（デフォルトで起動）
+  #
+  # ソースを bind mount して、コンテナ内で mise を使って開発する。
+  # 初回のみ:
+  #   docker compose exec dev bash
+  #   mise install && mise run python-deps
+  # ===========================================================================
+  dev:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       args:
         UID: ${HOST_UID:-1000}
         GID: ${HOST_GID:-1000}
         USERNAME: ${USERNAME:-vscode}
-    container_name: ${COMPOSE_PROJECT_NAME:-mb_scanner}
+    container_name: ${COMPOSE_PROJECT_NAME:-mb_scanner}-dev
     environment:
       - HOST_UID=${HOST_UID:-1000}
       - HOST_GID=${HOST_GID:-1000}
@@ -17,4 +25,31 @@ services:
         target: /home/${USERNAME:-vscode}/workspace
     stdin_open: true
     tty: true
-    command: /bin/bash
+
+  # ===========================================================================
+  # scanner — 再現実験用（profiles: archive、デフォルトでは起動しない）
+  #
+  # 論文提出・実験アーカイブ時に明示的にビルドして使う想定。
+  # 使い方:
+  #   docker compose --profile archive build scanner
+  #   docker compose --profile archive run --rm scanner mbs search
+  # ===========================================================================
+  scanner:
+    profiles: ["archive"]
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        UID: ${HOST_UID:-1000}
+        GID: ${HOST_GID:-1000}
+    container_name: ${COMPOSE_PROJECT_NAME:-mb_scanner}-archive
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - type: bind
+        source: ./data
+        target: /app/data
+      - type: bind
+        source: ./outputs
+        target: /app/outputs

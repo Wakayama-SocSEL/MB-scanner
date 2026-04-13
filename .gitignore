@@ -25,3 +25,10 @@ tmp/
 
 codeql/queries
 node_modules/
+mb-analyzer/**/dist/
+mb-analyzer/**/node_modules/
+
+# Editor / local tooling
+.vscode/
+.mise/
+.cmux-surface

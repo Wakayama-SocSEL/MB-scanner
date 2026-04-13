@@ -9,10 +9,9 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from mb_scanner.db.base import Base
-from mb_scanner.services.project_search_service import ProjectSearchService
-from mb_scanner.services.project_service import ProjectService
-from mb_scanner.services.topic_service import TopicService
+from mb_scanner.adapters.repositories.sqlalchemy_project_repo import SqlAlchemyProjectRepository
+from mb_scanner.adapters.repositories.sqlalchemy_topic_repo import SqlAlchemyTopicRepository
+from mb_scanner.infrastructure.orm.base import Base
 
 
 @pytest.fixture(scope="function")
@@ -46,39 +45,26 @@ def test_db() -> Generator[Session]:
 
 
 @pytest.fixture
-def topic_service(test_db: Session) -> TopicService:
-    """TopicService のインスタンスを提供するフィクスチャ
+def topic_service(test_db: Session) -> SqlAlchemyTopicRepository:
+    """SqlAlchemyTopicRepository のインスタンスを提供するフィクスチャ
 
     Args:
         test_db: テスト用DBセッション
 
     Returns:
-        TopicService: テスト用サービスインスタンス
+        SqlAlchemyTopicRepository: テスト用リポジトリインスタンス
     """
-    return TopicService(test_db)
+    return SqlAlchemyTopicRepository(test_db)
 
 
 @pytest.fixture
-def project_service(test_db: Session) -> ProjectService:
-    """ProjectService のインスタンスを提供するフィクスチャ
+def project_service(test_db: Session) -> SqlAlchemyProjectRepository:
+    """SqlAlchemyProjectRepository のインスタンスを提供するフィクスチャ
 
     Args:
         test_db: テスト用DBセッション
 
     Returns:
-        ProjectService: テスト用サービスインスタンス
+        SqlAlchemyProjectRepository: テスト用リポジトリインスタンス
     """
-    return ProjectService(test_db)
-
-
-@pytest.fixture
-def search_service(test_db: Session) -> ProjectSearchService:
-    """ProjectSearchService のインスタンスを提供するフィクスチャ
-
-    Args:
-        test_db: テスト用DBセッション
-
-    Returns:
-        ProjectSearchService: テスト用サービスインスタンス
-    """
-    return ProjectSearchService(test_db)
+    return SqlAlchemyProjectRepository(test_db)

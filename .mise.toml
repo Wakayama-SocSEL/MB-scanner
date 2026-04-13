@@ -1,0 +1,187 @@
+# =============================================================================
+# ツールバージョン管理
+# =============================================================================
+# このファイルがチーム全体・ローカル・Docker の唯一の真実の源泉
+# バージョンはピン留めし、再現性を担保する
+
+[tools]
+uv = "0.10.6"
+node = "22"
+pnpm = "10"
+
+# =============================================================================
+# 開発環境のセットアップ
+# =============================================================================
+
+[tasks.venv]
+description = "Python の仮想環境を作成する"
+run = """
+echo "Creating Python virtual environment..."
+uv venv --clear
+"""
+
+[tasks.python-deps]
+description = "Python の依存関係をインストールする"
+depends = ["venv"]
+run = """
+echo "Installing Python dependencies..."
+uv sync --dev
+uv pip install -e .
+"""
+
+# =============================================================================
+# コードの品質管理
+# =============================================================================
+
+[tasks.format]
+description = "プロジェクトをフォーマットする"
+run = """
+echo "Formatting code with Ruff..."
+uvx ruff format .
+"""
+
+[tasks.lint]
+description = "プロジェクトの静的解析(Lint)を実行する"
+run = """
+echo "Linting code with Ruff..."
+uvx ruff check .
+"""
+
+[tasks.fix]
+description = "フォーマットと自動修正をまとめて実行する"
+depends = ["format"]
+run = "uvx ruff check . --fix"
+
+[tasks.typecheck]
+description = "型チェックを実行する"
+run = """
+echo "Running type check with Pyright..."
+uv run pyright
+"""
+
+[tasks.typecheck-ts]
+description = "TypeScript の型チェックを実行する"
+run = """
+echo "Running TypeScript type check..."
+pnpm --prefix mb-analyzer -r run typecheck
+"""
+
+# =============================================================================
+# テスト
+# =============================================================================
+
+[tasks.test]
+description = "テストを実行する"
+run = "uv run pytest tests/"
+
+[tasks.test-cov]
+description = "カバレッジ付きでテストを実行する"
+run = "uv run pytest tests/ --cov=mb_scanner --cov-report=term-missing"
+
+[tasks.test-analyzer-ts]
+description = "mb-analyzer の TypeScript テスト (vitest) を実行する"
+run = """
+echo "Running TypeScript tests with vitest..."
+pnpm --prefix mb-analyzer run test
+"""
+
+# =============================================================================
+# アーキテクチャ検証
+# =============================================================================
+
+[tasks.check-arch]
+description = "import-linter でレイヤー契約を検証する"
+run = "uv run lint-imports"
+
+[tasks.check]
+description = "Lint + 型チェック + テスト + アーキテクチャ検証を一括実行する"
+depends = ["lint", "typecheck", "typecheck-ts", "test", "test-analyzer-ts", "check-arch"]
+run = ""
+
+# =============================================================================
+# TypeScript ビルド
+# =============================================================================
+
+[tasks.build-analyzer-ts]
+description = "mb-analyzer の TypeScript を単発ビルドする"
+run = """
+echo "Building TypeScript..."
+pnpm --prefix mb-analyzer run build
+"""
+
+[tasks.watch-analyzer-ts]
+description = "mb-analyzer の TypeScript を watch モードでビルドする"
+run = """
+echo "Watching TypeScript build..."
+pnpm --prefix mb-analyzer --filter @mb-analyzer/equivalence-runner run build:watch
+"""
+
+[tasks.stop-analyzer-watch]
+description = "mb-analyzer の TypeScript watch を停止する"
+run = """
+echo "Stopping TypeScript watch processes..."
+pkill -f 'node build.mjs --watch' || true
+pkill -f '@mb-analyzer/equivalence-runner run build:watch' || true
+pkill -f 'esbuild .*src/index.ts.*--watch' || true
+"""
+
+# =============================================================================
+# データベース管理
+# =============================================================================
+
+[tasks.migrate]
+description = "データベースマイグレーションを実行する"
+run = """
+echo "Running database migrations..."
+uv run mb-scanner migrate
+"""
+
+[tasks.migrate-dry-run]
+description = "データベースマイグレーションのドライラン"
+run = """
+echo "Checking pending migrations (dry run)..."
+uv run mb-scanner migrate --dry-run
+"""
+
+# =============================================================================
+# Docker — 日常開発用（dev コンテナ）
+# =============================================================================
+
+[tasks."docker:build"]
+description = "dev イメージをビルドする"
+run = "docker compose build dev"
+
+[tasks."docker:up"]
+description = "dev コンテナを起動する（バックグラウンド）"
+run = "docker compose up -d dev"
+
+[tasks."docker:shell"]
+description = "dev コンテナにシェルで入る"
+run = "docker compose exec dev bash"
+
+[tasks."docker:down"]
+description = "dev コンテナを停止する"
+run = "docker compose down"
+
+[tasks."docker:logs"]
+description = "dev コンテナのログを表示する"
+run = "docker compose logs -f dev"
+
+[tasks."docker:restart"]
+description = "dev コンテナを再起動する"
+run = """
+docker compose down
+docker compose up -d dev
+"""
+
+# =============================================================================
+# Docker — 再現実験用（archive プロファイル = prod イメージ）
+# =============================================================================
+
+[tasks."docker:archive:build"]
+description = "再現実験用 (prod) イメージをビルドする"
+run = "docker compose --profile archive build scanner"
+
+[tasks."docker:archive:run"]
+description = "再現実験用 (prod) イメージで単発コマンドを実行する（引数は docker compose run に追加される）"
+run = "docker compose --profile archive run --rm scanner"

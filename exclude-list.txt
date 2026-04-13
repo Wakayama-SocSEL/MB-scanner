@@ -15,10 +15,12 @@ tests/
 .git/
 .claude/
 AGENTS.md
-CLUADE.md
+CLAUDE.md
 ai-guide/
 .ai/
 outputs/
+benchmark/node_modules/
+benchmark/dist/
 
 # 設定ファイル
 .env.sample
