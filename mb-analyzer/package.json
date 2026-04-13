@@ -4,10 +4,12 @@
   "packageManager": "pnpm@10.0.0",
   "scripts": {
     "build": "pnpm --filter @mb-analyzer/equivalence-runner run build",
-    "typecheck": "pnpm -r run typecheck"
+    "typecheck": "pnpm -r run typecheck",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

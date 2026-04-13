@@ -78,6 +78,13 @@ run = "uv run pytest tests/"
 description = "カバレッジ付きでテストを実行する"
 run = "uv run pytest tests/ --cov=mb_scanner --cov-report=term-missing"
 
+[tasks.test-analyzer-ts]
+description = "mb-analyzer の TypeScript テスト (vitest) を実行する"
+run = """
+echo "Running TypeScript tests with vitest..."
+pnpm --prefix mb-analyzer run test
+"""
+
 # =============================================================================
 # アーキテクチャ検証
 # =============================================================================
@@ -88,7 +95,7 @@ run = "uv run lint-imports"
 
 [tasks.check]
 description = "Lint + 型チェック + テスト + アーキテクチャ検証を一括実行する"
-depends = ["lint", "typecheck", "typecheck-ts", "test", "check-arch"]
+depends = ["lint", "typecheck", "typecheck-ts", "test", "test-analyzer-ts", "check-arch"]
 run = ""
 
 # =============================================================================
