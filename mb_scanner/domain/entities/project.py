@@ -6,7 +6,7 @@ ORM との接続は infrastructure/orm/ で行う。
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Topic(BaseModel):
@@ -46,4 +46,4 @@ class Project(BaseModel):
     description: str | None = None
     fetched_at: datetime | None = None
     js_lines_count: int | None = None
-    topics: list[Topic] = []
+    topics: list[Topic] = Field(default_factory=list)

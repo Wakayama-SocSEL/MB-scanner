@@ -125,8 +125,10 @@ def run_batch_equivalence_check(
     if count is not None:
         entry_dirs = entry_dirs[:count]
 
-    # workers が -1 の場合は全CPUコアを使用
-    actual_workers = os.cpu_count() if workers == -1 else workers
+    # workers が -1 の場合は全CPUコアを使用（cpu_count() が None の環境では 1 にフォールバック）
+    actual_workers = (os.cpu_count() or 1) if workers == -1 else workers
+    if actual_workers < 1:
+        raise ValueError(f"workers must be >= 1 (got {actual_workers})")
 
     # 並列実行
     with ThreadPoolExecutor(max_workers=actual_workers) as executor:
