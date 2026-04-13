@@ -31,7 +31,7 @@ fi
 
 # cmuxで右側に新しいターミナルペインを作成し、Surface IDを取得
 echo "cmux で右ペインを作成中..."
-SURFACE_REF=$(cmux --json new-pane --direction right | jq -r '.surface')
+SURFACE_REF=$(cmux --json new-pane --direction right | jq -r '.surface_ref')
 
 if [ -z "$SURFACE_REF" ] || [ "$SURFACE_REF" = "null" ]; then
   echo "Error: cmux からSurface IDを取得できませんでした" >&2
