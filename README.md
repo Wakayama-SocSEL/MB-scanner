@@ -103,6 +103,21 @@ mbs search
 # CodeQL データベースの作成
 mbs codeql create-db facebook/react
 
+# 等価性検証（Node.js 側 CLI バンドル `mb-analyzer/dist/cli.js` を呼び出す）
+mise run build-analyzer        # 初回のみ：pnpm install + esbuild で dist/cli.js を生成
+mbs check-equivalence \
+    --setup 'const x = -3;' \
+    --slow 'x % 2' \
+    --fast 'x & 1'
+# exit 1 で not_equal を返す (Selakovic パターン 8 の負数反例)
+
+# 複数トリプルのバッチ検証（JSONL 入出力、Python 側で ThreadPoolExecutor による並列化）
+mbs check-equivalence-batch \
+    --input trips.jsonl \
+    --output results.jsonl \
+    --workers -1        # -1 で os.cpu_count() を使用
+# 各行: {"id":"case-001","setup":"...","slow":"...","fast":"...","timeout_ms":5000}
+
 # ヘルプ
 mbs --help
 mbs search --help
@@ -178,14 +193,20 @@ mb_scanner/
 │   └── gateways/             # 外部サービス連携（GitHub, CodeQL, 可視化）
 └── infrastructure/           # フレームワーク（ORM, DB接続, 設定）
 
+mb-analyzer/                  # TypeScript 側 single-package（等価性検証・AST 解析・ルール生成の基盤）
+├── src/
+│   ├── shared/               # 共通型（Verdict/Oracle/EquivalenceInput 等、Python と JSON 互換）
+│   ├── equivalence-checker/  # ① 等価性検証器（sandbox + 4 oracle + checker）
+│   └── cli/                  # composition root（check-equivalence サブコマンド）
+└── dist/cli.js               # esbuild で生成する 1 ファイル CLI（`mise run build-analyzer`）
+
 mb-analyzer-legacy/           # [DEPRECATED] 旧 TypeScript analyzer monorepo (pnpm workspace)
 ├── apps/
 │   └── equivalence-runner/   # 旧 equivalence-check コマンドが依存する CLI
 └── features/                 # Package by Feature + 内部に Clean Architecture 4 層
-    ├── equivalence-check/    # 旧 slow/fast 等価性チェック（後継: mb-analyzer/equivalence-checker）
+    ├── equivalence-check/    # 旧 slow/fast 等価性チェック（後継: mb-analyzer/src/equivalence-checker）
     ├── pattern-mining/       # 旧スケルトン
     └── rule-codegen/         # 旧スケルトン
-# mb-analyzer/ は新 single-package 構成で再構築予定（equivalence-checker / pruning / 他）
 codeql/                       # CodeQL クエリ設定
 data/                         # ランタイムデータ（DB, クローン, CodeQL DB）
 outputs/                      # クエリ結果・可視化出力

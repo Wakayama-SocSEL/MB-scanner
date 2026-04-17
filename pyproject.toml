@@ -97,6 +97,7 @@ ignore = [
 "mb_scanner/adapters/cli/**/*.py" = ["B008"]  # typer.Optionをデフォルト引数で使用 (Typerの正しい使い方)
 "mb_scanner/domain/ports/**/*.py" = ["D102"]  # Protocolメソッドはクラスdocstringで代替
 "mb_scanner/adapters/repositories/**/*.py" = ["D102"]  # Protocol実装のメソッドはインターフェース定義を参照
+"tests/**/*.py" = ["D101", "D102", "D103"]  # テストのクラス/メソッド/関数の docstring 強制は過剰
 
 [tool.ruff.lint.isort]
 # プロジェクト内のモジュールを正しく認識
@@ -163,6 +164,9 @@ typeCheckingMode = "strict"
 exclude = [
     ".venv",
     "**/__pycache__",
+    "mb-analyzer",            # TypeScript 側の node_modules 等を対象外に
+    "mb-analyzer-legacy",     # 旧 TypeScript 側
+    "**/node_modules",
 ]
 stubPath = "stubs"
 reportMissingTypeStubs = false

@@ -100,19 +100,24 @@ mb_scanner/
 └── core/                     # 横断的ユーティリティ
     └── cleanup.py
 
-mb-analyzer-legacy/           # [DEPRECATED] 旧 TypeScript analyzer monorepo (pnpm workspace)
-├── apps/
-│   └── equivalence-runner/   # 旧 equivalence-check コマンドが依存する CLI
-│       ├── src/index.ts
-│       └── dist/index.js     # ビルド成果物 (esbuild 単一 bundle)
-├── features/                 # Package by Feature + 内部に CA 4 層
-│   ├── equivalence-check/    # 旧 slow/fast 等価性チェック（後継: mb-analyzer/equivalence-checker）
-│   │   └── src/{domain,use-cases,infrastructure}/
-│   ├── pattern-mining/       # 旧スケルトン
-│   └── rule-codegen/         # 旧スケルトン
-├── pnpm-workspace.yaml
-└── tsconfig.base.json
-# mb-analyzer/ は新 single-package 構成で再構築予定
+mb-analyzer/                  # === TypeScript CLI (現行実装) ===
+├── src/
+│   ├── shared/               # 末端層: 型定義のみ（他機能を import 禁止）
+│   │   └── types.ts          # Python 側 Pydantic と JSON 互換な EquivalenceInput / Result
+│   ├── equivalence-checker/  # 等価性検証器（pruning/ 等を import 禁止）
+│   │   ├── checker.ts        # checkEquivalence() 本体
+│   │   ├── verdict.ts        # 全体 verdict 判定
+│   │   ├── oracles/          # 4 oracle (return_value / argument_mutation / exception / external_observation)
+│   │   └── sandbox/          # vm.Script ベースのサンドボックス (stabilizer, executor, serializer)
+│   └── cli/                  # composition root (全機能を import 可能)
+│       ├── index.ts          # サブコマンドディスパッチ
+│       └── check-equivalence.ts  # check-equivalence + check-equivalence-batch ハンドラ
+├── tests/                    # vitest (`tests/**/*.test.ts` を自動検出)
+├── dist/cli.js               # esbuild バンドル成果物 (mise run build-analyzer で生成)
+└── eslint.config.js          # `import/no-restricted-paths` で依存方向を機械強制
+
+mb-analyzer-legacy/           # [DEPRECATED] 旧 pnpm workspace monorepo
+# 認知コストを抑えつつ復元可能なように単純リネーム退避。新機能は追加しない。
 
 codeql/                       # CodeQL クエリ設定
 tests/                        # テスト（CA 構造をミラー）
@@ -120,6 +125,40 @@ tests/                        # テスト（CA 構造をミラー）
 ├── use_cases/
 ├── adapters/{cli,repositories,gateways}/
 └── infrastructure/{db,test_config,test_logging_config}/
+```
+
+### TypeScript 側 (`mb-analyzer/`) のアーキテクチャ
+
+等価性検証器・Pruning・同値分割テスト・ts-eslint ルール生成など、AST 解析とサンドボックス実行を担う薄い CLI です。Python 側から `dist/cli.js` に対して stdin/stdout の JSON で呼び出されます。
+
+**依存方向ゾーン** (ESLint `import/no-restricted-paths` で機械強制):
+
+```
+shared/ ──→ (何も import しない) 
+equivalence-checker/ ──→ shared のみ (pruning / equivalence-class-test / eslint-rule-codegen / cli を import 禁止)
+pruning/ ──→ shared / equivalence-checker (将来追加予定)
+equivalence-class-test/ ──→ shared / equivalence-checker / pruning (将来追加予定)
+eslint-rule-codegen/ ──→ 上記すべて (将来追加予定)
+cli/ ──→ 全機能 (composition root)
+```
+
+- **`shared/`**: 他機能を import 禁止（末端層）。Python 側 Pydantic モデルと JSON 互換な型定義のみ置く。
+- **各機能パッケージ**: 自身より右側の機能を import 禁止。横依存を避ける。
+- **`cli/`**: composition root。stdin/stdout と subprocess 契約を担当し、ビジネスロジックは持たない。
+
+**Python ↔ Node の契約**:
+
+- フィールド名は snake_case、列挙値文字列も両言語で完全一致 (`shared/types.ts` と `mb_scanner/domain/entities/equivalence.py`)
+- Pydantic `extra="ignore"` により Node が将来フィールドを足しても Python が壊れない設計
+- バッチ API では `id` をエコーバックして順序暗黙依存を排除、`effective_timeout_ms` で Node が実際に使った timeout を Python から検証可能（過去の受け渡し失敗への多重防御）
+
+**静的解析コマンド**:
+
+```bash
+mise run typecheck-analyzer   # tsc --noEmit
+mise run lint-analyzer        # eslint (依存方向検査込み)
+mise run test-analyzer        # vitest
+mise run build-analyzer       # esbuild で dist/cli.js をバンドル (Python 側から利用するには先にこれ)
 ```
 
 ### データフロー
@@ -174,22 +213,36 @@ tests/                        # テスト（CA 構造をミラー）
 3. `mb_scanner/infrastructure/db/migrations.py` にマイグレーション処理を追加する。
 4. `mbs migrate` コマンドで既存のデータベースを更新する。
 
-### 7. ベンチマーク機能の拡張
+### 7. 等価性検証 (equivalence-checker) の拡張
 
-> **DEPRECATED**: 以下は旧 `mb-analyzer-legacy/` 向けの手順。新 equivalence-checker は `mb-analyzer/` に single package 構成で再構築予定のため、新機能はそちらに実装すること。
+新機能は新 `mb-analyzer/` 側に実装すること (`mb-analyzer-legacy/` は DEPRECATED)。
 
-#### サンドボックス環境のカスタマイズ（旧）
+#### サンドボックス環境のカスタマイズ
 
-- **安定化処理の追加**: `mb-analyzer-legacy/features/equivalence-check/src/infrastructure/sandbox/stabilizer.ts` に新しい固定化ロジックを追加する。
-- **サンドボックスへの統合**: 同 feature の `infrastructure/sandbox/executor.ts` で安定化処理を適用する。
+- **安定化処理の追加**: `mb-analyzer/src/equivalence-checker/sandbox/stabilizer.ts` に新しい固定化ロジックを追加する（Date, Math.random, console などの decoupling）。
+- **サンドボックスへの統合**: 同階層の `executor.ts` で安定化処理を適用する。
 
-#### 比較ストラテジーの追加（旧）
+#### 新しい oracle の追加
 
-1. `mb-analyzer-legacy/features/equivalence-check/src/use-cases/strategies/` に新ストラテジーを作成（`canApply()`, `compare()` 実装）
-2. `mb-analyzer-legacy/features/equivalence-check/src/use-cases/checker.ts` で戦略リストに追加
-3. `mb-analyzer-legacy/features/equivalence-check/src/index.ts` の public export に含める（必要なら）
-4. `mb_scanner/domain/entities/benchmark.py` の `comparison_method` Literal に追加
-5. テスト追加（`tests/use_cases/test_benchmark_runner.py`）
+1. `mb-analyzer/src/equivalence-checker/oracles/` に新 oracle を作成（`check*(slow, fast): OracleObservation` を export）
+2. `equivalence-checker/checker.ts` の observations リストに追加
+3. `mb_scanner/domain/entities/equivalence.py` の `Oracle` 列挙値に対応する文字列を追加（Python ↔ TS で完全一致）
+4. `verdict.ts` / `use_cases/equivalence_verification.py` の `derive_overall_verdict` 優先順位を見直し
+5. テスト追加（`mb-analyzer/tests/equivalence-checker/oracles/*.test.ts` と Python 側 use case テスト）
+
+#### バッチ API の拡張
+
+- Node 側は 1 バッチ 1 subprocess でトリプルを逐次処理する設計（Python 側 `ThreadPoolExecutor` で並列化）
+- JSONL 入出力で `id` をエコーバックし、Python ↔ Node の順序暗黙依存を避ける
+- `effective_timeout_ms` を結果に含め、Python→Node の timeout_ms 受け渡し乖離を自動検出する
+- CLI 層で `timeout_ms` の優先順位 (JSONL 行 > CLI `--timeout-ms` > Pydantic default) を明示的に解決する
+
+#### 新機能パッケージの追加 (Pruning / 同値分割テスト / ルール生成)
+
+- `mb-analyzer/src/<feature-name>/` に新ディレクトリを作成
+- `eslint.config.js` の `DEPENDENCY_ZONES` に新ゾーンを追加し、依存方向を機械強制する
+- CLI ハンドラを `mb-analyzer/src/cli/<feature>.ts` に追加、`cli/index.ts` の `SUBCOMMANDS` に登録
+- Python 側は `mb_scanner/adapters/gateways/` に新 Gateway、`domain/ports/` に新 Protocol、`use_cases/` に新 Use Case を追加
 
 ---
 
