@@ -60,10 +60,10 @@ uv run pyright
 """
 
 [tasks.typecheck-ts]
-description = "TypeScript の型チェックを実行する"
+description = "[DEPRECATED] 旧 mb-analyzer-legacy (pnpm workspace) の TypeScript 型チェックを実行する"
 run = """
-echo "Running TypeScript type check..."
-pnpm --prefix mb-analyzer -r run typecheck
+echo "[DEPRECATED] Running TypeScript type check on mb-analyzer-legacy..."
+pnpm --prefix mb-analyzer-legacy -r run typecheck
 """
 
 # =============================================================================
@@ -79,10 +79,10 @@ description = "カバレッジ付きでテストを実行する"
 run = "uv run pytest tests/ --cov=mb_scanner --cov-report=term-missing"
 
 [tasks.test-analyzer-ts]
-description = "mb-analyzer の TypeScript テスト (vitest) を実行する"
+description = "[DEPRECATED] 旧 mb-analyzer-legacy の TypeScript テスト (vitest) を実行する"
 run = """
-echo "Running TypeScript tests with vitest..."
-pnpm --prefix mb-analyzer run test
+echo "[DEPRECATED] Running TypeScript tests on mb-analyzer-legacy..."
+pnpm --prefix mb-analyzer-legacy run test
 """
 
 # =============================================================================
@@ -103,17 +103,17 @@ run = ""
 # =============================================================================
 
 [tasks.build-analyzer-ts]
-description = "mb-analyzer の TypeScript を単発ビルドする"
+description = "[DEPRECATED] 旧 mb-analyzer-legacy の TypeScript を単発ビルドする"
 run = """
-echo "Building TypeScript..."
-pnpm --prefix mb-analyzer run build
+echo "[DEPRECATED] Building mb-analyzer-legacy TypeScript..."
+pnpm --prefix mb-analyzer-legacy run build
 """
 
 [tasks.watch-analyzer-ts]
-description = "mb-analyzer の TypeScript を watch モードでビルドする"
+description = "[DEPRECATED] 旧 mb-analyzer-legacy の TypeScript を watch モードでビルドする"
 run = """
-echo "Watching TypeScript build..."
-pnpm --prefix mb-analyzer --filter @mb-analyzer/equivalence-runner run build:watch
+echo "[DEPRECATED] Watching mb-analyzer-legacy TypeScript build..."
+pnpm --prefix mb-analyzer-legacy --filter @mb-analyzer/equivalence-runner run build:watch
 """
 
 [tasks.stop-analyzer-watch]

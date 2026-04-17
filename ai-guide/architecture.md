@@ -100,18 +100,19 @@ mb_scanner/
 └── core/                     # 横断的ユーティリティ
     └── cleanup.py
 
-mb-analyzer/                  # TypeScript analyzer monorepo (pnpm workspace)
+mb-analyzer-legacy/           # [DEPRECATED] 旧 TypeScript analyzer monorepo (pnpm workspace)
 ├── apps/
-│   └── equivalence-runner/   # Python から起動される CLI (composition root)
+│   └── equivalence-runner/   # 旧 equivalence-check コマンドが依存する CLI
 │       ├── src/index.ts
 │       └── dist/index.js     # ビルド成果物 (esbuild 単一 bundle)
 ├── features/                 # Package by Feature + 内部に CA 4 層
-│   ├── equivalence-check/    # slow/fast コードの等価性チェック
+│   ├── equivalence-check/    # 旧 slow/fast 等価性チェック（後継: mb-analyzer/equivalence-checker）
 │   │   └── src/{domain,use-cases,infrastructure}/
-│   ├── pattern-mining/       # (将来) C1〜C4 条件抽出
-│   └── rule-codegen/         # (将来) ts-eslint rule 生成
+│   ├── pattern-mining/       # 旧スケルトン
+│   └── rule-codegen/         # 旧スケルトン
 ├── pnpm-workspace.yaml
 └── tsconfig.base.json
+# mb-analyzer/ は新 single-package 構成で再構築予定
 
 codeql/                       # CodeQL クエリ設定
 tests/                        # テスト（CA 構造をミラー）
@@ -175,16 +176,18 @@ tests/                        # テスト（CA 構造をミラー）
 
 ### 7. ベンチマーク機能の拡張
 
-#### サンドボックス環境のカスタマイズ
+> **DEPRECATED**: 以下は旧 `mb-analyzer-legacy/` 向けの手順。新 equivalence-checker は `mb-analyzer/` に single package 構成で再構築予定のため、新機能はそちらに実装すること。
 
-- **安定化処理の追加**: `mb-analyzer/features/equivalence-check/src/infrastructure/sandbox/stabilizer.ts` に新しい固定化ロジックを追加する。
+#### サンドボックス環境のカスタマイズ（旧）
+
+- **安定化処理の追加**: `mb-analyzer-legacy/features/equivalence-check/src/infrastructure/sandbox/stabilizer.ts` に新しい固定化ロジックを追加する。
 - **サンドボックスへの統合**: 同 feature の `infrastructure/sandbox/executor.ts` で安定化処理を適用する。
 
-#### 比較ストラテジーの追加
+#### 比較ストラテジーの追加（旧）
 
-1. `mb-analyzer/features/equivalence-check/src/use-cases/strategies/` に新ストラテジーを作成（`canApply()`, `compare()` 実装）
-2. `mb-analyzer/features/equivalence-check/src/use-cases/checker.ts` で戦略リストに追加
-3. `mb-analyzer/features/equivalence-check/src/index.ts` の public export に含める（必要なら）
+1. `mb-analyzer-legacy/features/equivalence-check/src/use-cases/strategies/` に新ストラテジーを作成（`canApply()`, `compare()` 実装）
+2. `mb-analyzer-legacy/features/equivalence-check/src/use-cases/checker.ts` で戦略リストに追加
+3. `mb-analyzer-legacy/features/equivalence-check/src/index.ts` の public export に含める（必要なら）
 4. `mb_scanner/domain/entities/benchmark.py` の `comparison_method` Literal に追加
 5. テスト追加（`tests/use_cases/test_benchmark_runner.py`）
 

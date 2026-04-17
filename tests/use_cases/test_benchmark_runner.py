@@ -1,4 +1,8 @@
-"""ベンチマーク等価性チェックサービスのテスト"""
+"""ベンチマーク等価性チェックサービスのテスト
+
+DEPRECATED: 旧 `mbs benchmark equivalence-check` コマンドのテスト。
+後継は `tests/use_cases/test_equivalence_verification.py`（予定）。
+"""
 
 from pathlib import Path
 
@@ -10,12 +14,7 @@ from mb_scanner.use_cases.benchmark_runner import (
 )
 
 RUNNER_JS_PATH = (
-    Path(__file__).parent.parent.parent
-    / "mb-analyzer"
-    / "apps"
-    / "equivalence-runner"
-    / "dist"
-    / "index.js"
+    Path(__file__).parent.parent.parent / "mb-analyzer-legacy" / "apps" / "equivalence-runner" / "dist" / "index.js"
 )
 
 

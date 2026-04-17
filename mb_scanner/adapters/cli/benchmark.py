@@ -179,7 +179,7 @@ def extract(
 def equivalence_check(
     input_dir: Path = typer.Argument(
         ...,
-        help="id_* ディレクトリを含む親ディレクトリのパス",
+        help="[DEPRECATED] id_* ディレクトリを含む親ディレクトリのパス",
     ),
     id_filter: int | None = typer.Option(
         None,
@@ -217,11 +217,19 @@ def equivalence_check(
         help="結果JSONファイルの出力先",
     ),
 ) -> None:
-    """slow/fastコードの実行結果が等価かを検証する
+    """slow/fastコードの実行結果が等価かを検証する（DEPRECATED）
+
+    DEPRECATED: このコマンドは将来廃止されます。
+    後継は `mbs check-equivalence`（1トリプル単位の判定、4 oracle 対応）。
 
     extractで展開したディレクトリを対象に、各エントリの
     slow.jsとfast.jsの実行結果を比較します。
     """
+    typer.echo(
+        "[DEPRECATED] `benchmark equivalence-check` は将来廃止されます。"
+        "後継: `mbs check-equivalence`（Phase 10 で提供予定）",
+        err=True,
+    )
     if not input_dir.exists():
         typer.echo(
             typer.style(f"Error: Directory not found: {input_dir}", fg=typer.colors.RED),

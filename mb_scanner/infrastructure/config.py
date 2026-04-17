@@ -147,10 +147,14 @@ class Settings(BaseSettings):
 
     @property
     def effective_benchmark_runner_js_path(self) -> Path:
-        """ベンチマークランナーJSファイルのパスを返す"""
+        """ベンチマークランナーJSファイルのパスを返す
+
+        DEPRECATED: 旧 equivalence-check コマンド（`mbs benchmark equivalence-check`）用。
+        新 `mbs check-equivalence` は `mb-analyzer/dist/cli.js` を使用する。
+        """
         return (
             self.benchmark_runner_js_path
-            or Path.cwd() / "mb-analyzer" / "apps" / "equivalence-runner" / "dist" / "index.js"
+            or Path.cwd() / "mb-analyzer-legacy" / "apps" / "equivalence-runner" / "dist" / "index.js"
         )
 
     def get_codeql_output_path(self, project_name: str, query_file: Path) -> Path:
