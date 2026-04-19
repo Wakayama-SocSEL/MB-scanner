@@ -12,7 +12,10 @@ Clean Architecture 4層構造を採用。依存は常に内側に向かう。
 
 依存方向の自動検証: `mise run check-arch`（import-linter）
 
-TypeScript 側 (`mb-analyzer/`) の構造・依存方向ルールは [`ai-guide/architecture.md`](ai-guide/architecture.md) を参照。
+TypeScript 側 (`mb-analyzer/`) も ESLint `import/no-restricted-paths` で依存方向を機械強制 (`mise run lint-analyzer`)。詳細は [`ai-guide/architecture/`](ai-guide/architecture/index.md) 参照。言語別の参照ドキュメント:
+- Python 側の詳細: [`mb-scanner.md`](ai-guide/architecture/mb-scanner.md)
+- TypeScript 側の詳細: [`mb-analyzer.md`](ai-guide/architecture/mb-analyzer.md)
+- 両言語をまたぐ JSON 契約: [`index.md`](ai-guide/architecture/index.md)
 
 ## 技術スタック
 - **言語**: Python 3.13+
