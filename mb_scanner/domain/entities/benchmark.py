@@ -2,6 +2,11 @@
 
 このモジュールは、MicroBench由来のベンチマークJSONLファイルを
 読み込むためのモデルを定義します。
+
+注意:
+- `BenchmarkEntry` は JSONL 読み込み用として今後も使用する。
+- `StrategyResult` / `EquivalenceResult` / `EquivalenceSummary` は DEPRECATED。
+  後継は `mb_scanner.domain.entities.equivalence` の新モデル群（Phase 7 で提供予定）。
 """
 
 import json
@@ -11,7 +16,10 @@ from pydantic import BaseModel, Field, field_serializer
 
 
 class StrategyResult(BaseModel):
-    """個別戦略の比較結果
+    """[DEPRECATED] 個別戦略の比較結果
+
+    DEPRECATED: このモデルは将来廃止されます。
+    後継は `mb_scanner.domain.entities.equivalence.OracleObservation`（Phase 7）。
 
     Attributes:
         comparison_method: 使用した比較戦略
@@ -75,7 +83,10 @@ class BenchmarkEntry(BaseModel):
 
 
 class EquivalenceResult(BaseModel):
-    """slow/fastコードの等価性チェック結果
+    """[DEPRECATED] slow/fastコードの等価性チェック結果
+
+    DEPRECATED: このモデルは将来廃止されます。
+    後継は `mb_scanner.domain.entities.equivalence.EquivalenceCheckResult`（Phase 7）。
 
     Attributes:
         id: ベンチマークエントリの一意識別子
@@ -98,7 +109,10 @@ class EquivalenceResult(BaseModel):
 
 
 class EquivalenceSummary(BaseModel):
-    """等価性チェックの全体サマリー
+    """[DEPRECATED] 等価性チェックの全体サマリー
+
+    DEPRECATED: このモデルは将来廃止されます。
+    新 equivalence-checker は 1 トリプル単位判定のため、サマリー集計は呼び出し側の責務になる。
 
     Attributes:
         total: 全チェック件数

@@ -1,6 +1,10 @@
-"""ベンチマーク等価性チェックサービス
+"""DEPRECATED: ベンチマーク等価性チェックサービス
 
-Node.jsスクリプトを使ってslow/fastコードの等価性を検証するサービスです。
+DEPRECATED: このモジュールは将来廃止されます。
+後継は `mb_scanner.use_cases.equivalence_verification`（1トリプル単位、4 oracle 対応）。
+
+Node.jsスクリプト (`mb-analyzer-legacy/apps/equivalence-runner/dist/index.js`) を使って
+slow/fastコードの等価性を検証するサービスです。
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -8,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import warnings
 
 from mb_scanner.domain.entities.benchmark import EquivalenceResult, EquivalenceSummary
 
@@ -18,7 +23,10 @@ def run_equivalence_check(
     *,
     runner_js_path: Path,
 ) -> EquivalenceResult:
-    """単一エントリの等価性チェックを実行する
+    """単一エントリの等価性チェックを実行する（DEPRECATED）
+
+    DEPRECATED: この関数は将来廃止されます。
+    後継は `EquivalenceVerificationUseCase`（Phase 8 で提供予定）。
 
     Args:
         entry_dir: id_{id} ディレクトリのパス（slow.js / fast.js を含む）
@@ -28,6 +36,12 @@ def run_equivalence_check(
     Returns:
         EquivalenceResult: チェック結果
     """
+    warnings.warn(
+        "run_equivalence_check は将来廃止されます。"
+        "後継: mb_scanner.use_cases.equivalence_verification.EquivalenceVerificationUseCase",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     dir_name = entry_dir.name
     entry_id = int(dir_name.replace("id_", ""))
 
@@ -96,7 +110,10 @@ def run_batch_equivalence_check(
     *,
     runner_js_path: Path,
 ) -> EquivalenceSummary:
-    """バッチで等価性チェックを実行する
+    """バッチで等価性チェックを実行する（DEPRECATED）
+
+    DEPRECATED: この関数は将来廃止されます。
+    後継は `EquivalenceVerificationUseCase` の呼び出し（ループ処理は呼び出し側の責務）。
 
     Args:
         input_dir: id_* ディレクトリを含む親ディレクトリ
@@ -110,6 +127,11 @@ def run_batch_equivalence_check(
     Returns:
         EquivalenceSummary: 全体のサマリー
     """
+    warnings.warn(
+        "run_batch_equivalence_check は将来廃止されます。後継: EquivalenceVerificationUseCase をループで呼び出すこと",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     # id_* ディレクトリを検索してソート
     entry_dirs = sorted(
         [d for d in input_dir.iterdir() if d.is_dir() and d.name.startswith("id_")],

@@ -1,0 +1,9 @@
+{
+  "pattern_id": 7,
+  "description": "Math.pow(x, 2) vs x * x",
+  "expected_verdict": "equal",
+  "expected_primary_oracles": ["return_value"],
+  "setup": "const x = 7;",
+  "slow": "Math.pow(x, 2)",
+  "fast": "x * x"
+}

@@ -1,0 +1,9 @@
+{
+  "pattern_id": 4,
+  "description": "jQuery-style .each() on a DOM mock vs native forEach; log accumulates into setup array",
+  "expected_verdict": "equal",
+  "expected_primary_oracles": ["argument_mutation"],
+  "setup": "const $mock = { items: ['a', 'b', 'c'], each(fn) { this.items.forEach(fn); return this; } }; const log = [];",
+  "slow": "$mock.each(x => log.push(x)); log.length",
+  "fast": "$mock.items.forEach(x => log.push(x)); log.length"
+}

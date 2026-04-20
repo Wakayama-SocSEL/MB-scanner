@@ -1,0 +1,9 @@
+{
+  "pattern_id": 8,
+  "description": "x % 2 vs x & 1 with a non-negative integer (safe case)",
+  "expected_verdict": "equal",
+  "expected_primary_oracles": ["return_value"],
+  "setup": "const x = 5;",
+  "slow": "x % 2",
+  "fast": "x & 1"
+}

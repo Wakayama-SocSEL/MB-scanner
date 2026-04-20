@@ -89,7 +89,20 @@ class Settings(BaseSettings):
     )
     benchmark_runner_js_path: Path | None = Field(
         default=None,
-        description="ベンチマークランナーJSファイルのパス",
+        description="ベンチマークランナーJSファイルのパス（DEPRECATED: 旧 mb-analyzer-legacy 用）",
+    )
+
+    # 新 mb-analyzer CLI 関連設定
+    mb_analyzer_cli_path: Path | None = Field(
+        default=None,
+        description=(
+            "mb-analyzer（新 TypeScript 実装）の CLI バンドル dist/cli.js のパス。"
+            "未指定なら cwd 基準のデフォルト位置を利用する。"
+        ),
+    )
+    mb_analyzer_node_bin: str = Field(
+        default="node",
+        description="mb-analyzer を起動する Node.js 実行ファイル。PATH 上なら 'node' のままで良い",
     )
 
     @property
@@ -146,11 +159,20 @@ class Settings(BaseSettings):
         return path
 
     @property
+    def effective_mb_analyzer_cli_path(self) -> Path:
+        """mb-analyzer CLI バンドルのパスを返す（`mbs check-equivalence` 等が利用）"""
+        return self.mb_analyzer_cli_path or Path.cwd() / "mb-analyzer" / "dist" / "cli.js"
+
+    @property
     def effective_benchmark_runner_js_path(self) -> Path:
-        """ベンチマークランナーJSファイルのパスを返す"""
+        """ベンチマークランナーJSファイルのパスを返す
+
+        DEPRECATED: 旧 equivalence-check コマンド（`mbs benchmark equivalence-check`）用。
+        新 `mbs check-equivalence` は `mb-analyzer/dist/cli.js` を使用する。
+        """
         return (
             self.benchmark_runner_js_path
-            or Path.cwd() / "mb-analyzer" / "apps" / "equivalence-runner" / "dist" / "index.js"
+            or Path.cwd() / "mb-analyzer-legacy" / "apps" / "equivalence-runner" / "dist" / "index.js"
         )
 
     def get_codeql_output_path(self, project_name: str, query_file: Path) -> Path:

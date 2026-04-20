@@ -1,0 +1,9 @@
+{
+  "pattern_id": 6,
+  "description": "[...a, ...b] vs a.concat(b)",
+  "expected_verdict": "equal",
+  "expected_primary_oracles": ["return_value"],
+  "setup": "const a = [1, 2]; const b = [3, 4];",
+  "slow": "[...a, ...b]",
+  "fast": "a.concat(b)"
+}

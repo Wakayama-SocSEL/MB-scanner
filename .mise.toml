@@ -60,10 +60,24 @@ uv run pyright
 """
 
 [tasks.typecheck-ts]
-description = "TypeScript の型チェックを実行する"
+description = "[DEPRECATED] 旧 mb-analyzer-legacy (pnpm workspace) の TypeScript 型チェックを実行する"
 run = """
-echo "Running TypeScript type check..."
-pnpm --prefix mb-analyzer -r run typecheck
+echo "[DEPRECATED] Running TypeScript type check on mb-analyzer-legacy..."
+pnpm --prefix mb-analyzer-legacy -r run typecheck
+"""
+
+[tasks.typecheck-analyzer]
+description = "mb-analyzer (新 TypeScript 実装) の型チェックを実行する"
+run = """
+echo "Running TypeScript type check on mb-analyzer..."
+pnpm --prefix mb-analyzer run typecheck
+"""
+
+[tasks.lint-analyzer]
+description = "mb-analyzer の ESLint (依存方向検査込み) を実行する"
+run = """
+echo "Running ESLint on mb-analyzer..."
+pnpm --prefix mb-analyzer run lint
 """
 
 # =============================================================================
@@ -79,10 +93,24 @@ description = "カバレッジ付きでテストを実行する"
 run = "uv run pytest tests/ --cov=mb_scanner --cov-report=term-missing"
 
 [tasks.test-analyzer-ts]
-description = "mb-analyzer の TypeScript テスト (vitest) を実行する"
+description = "[DEPRECATED] 旧 mb-analyzer-legacy の TypeScript テスト (vitest) を実行する"
 run = """
-echo "Running TypeScript tests with vitest..."
+echo "[DEPRECATED] Running TypeScript tests on mb-analyzer-legacy..."
+pnpm --prefix mb-analyzer-legacy run test
+"""
+
+[tasks.test-analyzer]
+description = "mb-analyzer (新 TypeScript 実装) の vitest を実行する"
+run = """
+echo "Running vitest on mb-analyzer..."
 pnpm --prefix mb-analyzer run test
+"""
+
+[tasks.test-analyzer-cov]
+description = "mb-analyzer (新 TypeScript 実装) の vitest をカバレッジ付きで実行する"
+run = """
+echo "Running vitest with coverage on mb-analyzer..."
+pnpm --prefix mb-analyzer run test:cov
 """
 
 # =============================================================================
@@ -95,7 +123,15 @@ run = "uv run lint-imports"
 
 [tasks.check]
 description = "Lint + 型チェック + テスト + アーキテクチャ検証を一括実行する"
-depends = ["lint", "typecheck", "typecheck-ts", "test", "test-analyzer-ts", "check-arch"]
+depends = [
+    "lint",
+    "typecheck",
+    "typecheck-analyzer",
+    "lint-analyzer",
+    "test",
+    "test-analyzer",
+    "check-arch",
+]
 run = ""
 
 # =============================================================================
@@ -103,17 +139,25 @@ run = ""
 # =============================================================================
 
 [tasks.build-analyzer-ts]
-description = "mb-analyzer の TypeScript を単発ビルドする"
+description = "[DEPRECATED] 旧 mb-analyzer-legacy の TypeScript を単発ビルドする"
 run = """
-echo "Building TypeScript..."
+echo "[DEPRECATED] Building mb-analyzer-legacy TypeScript..."
+pnpm --prefix mb-analyzer-legacy run build
+"""
+
+[tasks.build-analyzer]
+description = "mb-analyzer (新 TypeScript 実装) を dist/cli.js にバンドルする"
+run = """
+echo "Building mb-analyzer..."
+pnpm --prefix mb-analyzer install --prefer-offline
 pnpm --prefix mb-analyzer run build
 """
 
 [tasks.watch-analyzer-ts]
-description = "mb-analyzer の TypeScript を watch モードでビルドする"
+description = "[DEPRECATED] 旧 mb-analyzer-legacy の TypeScript を watch モードでビルドする"
 run = """
-echo "Watching TypeScript build..."
-pnpm --prefix mb-analyzer --filter @mb-analyzer/equivalence-runner run build:watch
+echo "[DEPRECATED] Watching mb-analyzer-legacy TypeScript build..."
+pnpm --prefix mb-analyzer-legacy --filter @mb-analyzer/equivalence-runner run build:watch
 """
 
 [tasks.stop-analyzer-watch]

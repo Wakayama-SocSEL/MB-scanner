@@ -1,0 +1,9 @@
+{
+  "pattern_id": 4,
+  "description": "jQuery-style .attr() mock that mutates a DOM node vs native setAttribute (equal argument mutation)",
+  "expected_verdict": "equal",
+  "expected_primary_oracles": ["argument_mutation"],
+  "setup": "const node = { attributes: {}, setAttribute(k, v) { this.attributes[k] = v; } }; const $node = { el: node, attr(k, v) { this.el.attributes[k] = v; return this; } };",
+  "slow": "$node.attr('id', 'hero'); node.attributes",
+  "fast": "node.setAttribute('id', 'hero'); node.attributes"
+}

@@ -1,0 +1,9 @@
+{
+  "pattern_id": 9,
+  "description": "typeof x === 'undefined' vs x === void 0",
+  "expected_verdict": "equal",
+  "expected_primary_oracles": ["return_value"],
+  "setup": "var x;",
+  "slow": "typeof x === 'undefined'",
+  "fast": "x === void 0"
+}

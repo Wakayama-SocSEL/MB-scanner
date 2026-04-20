@@ -46,4 +46,4 @@ class Project(BaseModel):
     description: str | None = None
     fetched_at: datetime | None = None
     js_lines_count: int | None = None
-    topics: list[Topic] = Field(default_factory=list)
+    topics: list[Topic] = Field(default_factory=list[Topic])

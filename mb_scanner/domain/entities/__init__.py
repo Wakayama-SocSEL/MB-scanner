@@ -4,6 +4,14 @@ from mb_scanner.domain.entities.benchmark import (
     EquivalenceSummary,
     StrategyResult,
 )
+from mb_scanner.domain.entities.equivalence import (
+    EquivalenceCheckResult,
+    EquivalenceInput,
+    Oracle,
+    OracleObservation,
+    OracleVerdict,
+    Verdict,
+)
 from mb_scanner.domain.entities.extraction import (
     CodeExtractionItem,
     CodeExtractionJobResult,
@@ -20,12 +28,18 @@ __all__ = [
     "CodeExtractionJobResult",
     "CodeExtractionMetadata",
     "CodeExtractionOutput",
+    "EquivalenceCheckResult",
+    "EquivalenceInput",
     "EquivalenceResult",
     "EquivalenceSummary",
+    "Oracle",
+    "OracleObservation",
+    "OracleVerdict",
     "Project",
     "QuerySummary",
     "SarifFinding",
     "SarifReport",
     "StrategyResult",
     "Topic",
+    "Verdict",
 ]

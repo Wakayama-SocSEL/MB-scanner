@@ -1,0 +1,9 @@
+{
+  "pattern_id": 8,
+  "description": "x % 2 vs x & 1 with a negative integer — the well-known counterexample (not_equal)",
+  "expected_verdict": "not_equal",
+  "expected_primary_oracles": ["return_value"],
+  "setup": "const x = -3;",
+  "slow": "x % 2",
+  "fast": "x & 1"
+}

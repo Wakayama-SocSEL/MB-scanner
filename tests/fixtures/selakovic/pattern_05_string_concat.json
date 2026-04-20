@@ -1,0 +1,9 @@
+{
+  "pattern_id": 5,
+  "description": "forEach + string += vs Array.join",
+  "expected_verdict": "equal",
+  "expected_primary_oracles": ["return_value"],
+  "setup": "const arr = ['foo', 'bar', 'baz'];",
+  "slow": "let s = ''; arr.forEach(x => { s += x; }); s",
+  "fast": "arr.join('')"
+}

@@ -1,4 +1,12 @@
-"""ベンチマーク等価性チェックサービスのテスト"""
+"""ベンチマーク等価性チェックサービスのテスト
+
+DEPRECATED: 旧 `mbs benchmark equivalence-check` コマンドのテスト。
+後継は `tests/use_cases/test_equivalence_verification.py` + `tests/adapters/gateways/equivalence/`。
+
+このテスト一式は `mb-analyzer-legacy/apps/equivalence-runner/dist/index.js` を実 subprocess で
+起動するため、事前に `pnpm --prefix mb-analyzer-legacy run build` が必要。dist が存在しない
+環境（新 mb-analyzer のみをビルドしている状況）では skip する。
+"""
 
 from pathlib import Path
 
@@ -10,12 +18,15 @@ from mb_scanner.use_cases.benchmark_runner import (
 )
 
 RUNNER_JS_PATH = (
-    Path(__file__).parent.parent.parent
-    / "mb-analyzer"
-    / "apps"
-    / "equivalence-runner"
-    / "dist"
-    / "index.js"
+    Path(__file__).parent.parent.parent / "mb-analyzer-legacy" / "apps" / "equivalence-runner" / "dist" / "index.js"
+)
+
+pytestmark = pytest.mark.skipif(
+    not RUNNER_JS_PATH.exists(),
+    reason=(
+        "mb-analyzer-legacy の dist/index.js が未ビルド。"
+        "DEPRECATED 経路のテストなので legacy をビルドしない環境では skip する。"
+    ),
 )
 
 
