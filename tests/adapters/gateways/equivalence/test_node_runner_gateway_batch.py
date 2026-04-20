@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from mb_scanner.adapters.gateways.equivalence.node_runner_gateway import (
     NodeRunnerEquivalenceGateway,
 )
@@ -170,17 +172,42 @@ class TestCheckBatchMocked:
         assert "did not return a result" in results[1].error_message
 
     def test_missing_id_input_is_preserved_as_none(self, tmp_path: Path) -> None:
-        """入力に id が無ければ出力にも id を残さない (単発呼び出し互換)"""
+        """入力に id が無ければ出力にも id を残さない (単発呼び出し互換)
+
+        Gateway が内部ランダムキーを詰めるので、subprocess mock の input を
+        読み取って実際に使われたキーをエコーバックする。
+        """
         fake_cli = tmp_path / "cli.js"
         fake_cli.write_text("// stub")
-        # Gateway が内部で __batch_idx_0 を詰めるので、その key をエコーバックしてもらう
-        stdout = _fake_node_result("__batch_idx_0")
-        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=stdout, stderr="")
-        with patch.object(subprocess, "run", return_value=completed):
+        captured: dict[str, str] = {}
+
+        def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+            input_str = kwargs.get("input")
+            assert isinstance(input_str, str)
+            sent = json.loads(input_str.splitlines()[0])
+            internal_key = sent["id"]
+            captured["key"] = internal_key
+            return subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout=_fake_node_result(internal_key),
+                stderr="",
+            )
+
+        with patch.object(subprocess, "run", side_effect=fake_run):
             gw = _gateway(fake_cli)
             results = gw.check_batch([EquivalenceInput(slow="1", fast="1")])
+        assert captured["key"].startswith("__mb_batch_idx__")
         assert results[0].id is None
         assert results[0].verdict is Verdict.EQUAL
+
+    def test_reserved_prefix_in_user_id_raises(self, tmp_path: Path) -> None:
+        """ユーザー指定の id が内部プレフィックスと衝突する場合は早期エラー"""
+        fake_cli = tmp_path / "cli.js"
+        fake_cli.write_text("// stub")
+        gw = _gateway(fake_cli)
+        with pytest.raises(ValueError, match="reserved prefix"):
+            gw.check_batch([EquivalenceInput(id="__mb_batch_idx__evil", slow="1", fast="1")])
 
     def test_effective_timeout_ms_mismatch_is_warned(self, tmp_path: Path) -> None:
         """Node が異なる timeout_ms で実行していた場合に警告を error_message に注入する"""

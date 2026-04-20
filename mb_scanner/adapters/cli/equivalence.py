@@ -9,7 +9,7 @@ Gateway を use case に注入し、結果を JSON / JSONL で返す。
 
 from collections import Counter
 from collections.abc import Iterator, Sequence
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import math
 from pathlib import Path
@@ -227,7 +227,10 @@ def _run_batch(
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {executor.submit(use_case.verify_batch, batch): batch_idx for batch_idx, batch in enumerate(batches)}
-        for done_count, (future, batch_idx) in enumerate(futures.items(), start=1):
+        # 完了順に回収する。挿入順で iterate すると先頭 future が遅い場合に他の完了分で
+        # ブロックしてしまい、並列性と進捗表示の両方が損なわれる。
+        for done_count, future in enumerate(as_completed(futures), start=1):
+            batch_idx = futures[future]
             batch_results[batch_idx] = future.result()
             sys.stderr.write(f"[progress] {done_count}/{total_batches} batches done\n")
             sys.stderr.flush()
