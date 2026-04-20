@@ -8,21 +8,9 @@
 import { describe, it } from "vitest";
 import * as fc from "fast-check";
 import { checkReturnValue } from "../../../src/equivalence-checker/oracles/return-value";
-import type { ExecutionCapture } from "../../../src/equivalence-checker/sandbox/executor";
 import { UNSERIALIZABLE_MARKER } from "../../../src/equivalence-checker/sandbox/executor";
-
-function capture(overrides: Partial<ExecutionCapture> = {}): ExecutionCapture {
-  return {
-    return_value: "undefined",
-    return_is_undefined: true,
-    arg_snapshots: [],
-    exception: null,
-    console_log: [],
-    new_globals: [],
-    timed_out: false,
-    ...overrides,
-  };
-}
+import { exceptionArbitrary } from "../../fixtures/arbitraries";
+import { capture } from "../../fixtures/capture";
 
 const serializedValue = fc.oneof(
   fc.constant("undefined"),
@@ -34,19 +22,11 @@ const serializedValue = fc.oneof(
   fc.constant(UNSERIALIZABLE_MARKER),
 );
 
-const exceptionCapture = fc.option(
-  fc.record({
-    ctor: fc.constantFrom("Error", "TypeError", "RangeError"),
-    message: fc.string({ maxLength: 20 }),
-  }),
-  { nil: null },
-);
-
 const arbitraryCapture = fc
   .record({
     return_value: serializedValue,
     return_is_undefined: fc.boolean(),
-    exception: exceptionCapture,
+    exception: exceptionArbitrary,
   })
   .map((r) => capture(r));
 

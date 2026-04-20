@@ -10,21 +10,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { checkReturnValue } from "../../../src/equivalence-checker/oracles/return-value";
-import type { ExecutionCapture } from "../../../src/equivalence-checker/sandbox/executor";
 import { UNSERIALIZABLE_MARKER } from "../../../src/equivalence-checker/sandbox/executor";
-
-function capture(overrides: Partial<ExecutionCapture> = {}): ExecutionCapture {
-  return {
-    return_value: "undefined",
-    return_is_undefined: true,
-    arg_snapshots: [],
-    exception: null,
-    console_log: [],
-    new_globals: [],
-    timed_out: false,
-    ...overrides,
-  };
-}
+import { capture } from "../../fixtures/capture";
 
 describe("checkReturnValue", () => {
   it("両側同値 → equal", () => {

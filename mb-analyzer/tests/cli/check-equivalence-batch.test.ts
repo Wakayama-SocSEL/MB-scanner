@@ -12,42 +12,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runCheckEquivalenceBatch } from "../../src/cli/check-equivalence";
-
-type WritableSpy = {
-  writes: string[];
-  original: typeof process.stdout.write;
-};
-
-function installStdoutSpy(): WritableSpy {
-  const writes: string[] = [];
-  const original = process.stdout.write.bind(process.stdout);
-  process.stdout.write = ((chunk: unknown) => {
-    writes.push(typeof chunk === "string" ? chunk : chunk instanceof Buffer ? chunk.toString("utf-8") : String(chunk));
-    return true;
-  }) as typeof process.stdout.write;
-  return { writes, original };
-}
-
-function restoreStdout(spy: WritableSpy): void {
-  process.stdout.write = spy.original;
-}
-
-function feedStdin(payload: string): () => void {
-  // process.stdin を AsyncIterator 互換のモックに差し替える
-  const chunks: Buffer[] = payload.length > 0 ? [Buffer.from(payload, "utf-8")] : [];
-  const iterator: AsyncIterator<Buffer> = {
-    next: () => {
-      const next = chunks.shift();
-      return Promise.resolve(next === undefined ? { value: undefined, done: true } : { value: next, done: false });
-    },
-  };
-  const stdinProxy = process.stdin as unknown as { [Symbol.asyncIterator]: () => AsyncIterator<Buffer> };
-  const originalAsyncIterator = stdinProxy[Symbol.asyncIterator];
-  stdinProxy[Symbol.asyncIterator] = () => iterator;
-  return () => {
-    stdinProxy[Symbol.asyncIterator] = originalAsyncIterator;
-  };
-}
+import { feedStdin, installSpy, restoreSpy, type WritableSpy } from "../fixtures/cli-io";
 
 interface BatchResult {
   id?: string;
@@ -76,11 +41,11 @@ describe("runCheckEquivalenceBatch", () => {
   let restoreStdin: () => void = () => {};
 
   beforeEach(() => {
-    spy = installStdoutSpy();
+    spy = installSpy("stdout");
   });
 
   afterEach(() => {
-    restoreStdout(spy);
+    restoreSpy("stdout", spy);
     restoreStdin();
   });
 

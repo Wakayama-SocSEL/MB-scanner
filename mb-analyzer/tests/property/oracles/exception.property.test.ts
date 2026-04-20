@@ -4,30 +4,10 @@
 import { describe, it } from "vitest";
 import * as fc from "fast-check";
 import { checkException } from "../../../src/equivalence-checker/oracles/exception";
-import type { ExecutionCapture } from "../../../src/equivalence-checker/sandbox/executor";
+import { exceptionArbitrary } from "../../fixtures/arbitraries";
+import { capture } from "../../fixtures/capture";
 
-function capture(overrides: Partial<ExecutionCapture> = {}): ExecutionCapture {
-  return {
-    return_value: "undefined",
-    return_is_undefined: true,
-    arg_snapshots: [],
-    exception: null,
-    console_log: [],
-    new_globals: [],
-    timed_out: false,
-    ...overrides,
-  };
-}
-
-const exceptionCapture = fc.option(
-  fc.record({
-    ctor: fc.constantFrom("Error", "TypeError", "RangeError", "SyntaxError"),
-    message: fc.string({ maxLength: 20 }),
-  }),
-  { nil: null },
-);
-
-const arbitraryCapture = exceptionCapture.map((exception) => capture({ exception }));
+const arbitraryCapture = exceptionArbitrary.map((exception) => capture({ exception }));
 
 describe("checkException (property)", () => {
   it("反射律: 自分自身との比較で not_equal は発生しない", () => {

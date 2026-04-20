@@ -9,21 +9,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { checkExternalObservation } from "../../../src/equivalence-checker/oracles/external-observation";
-import type { ExecutionCapture } from "../../../src/equivalence-checker/sandbox/executor";
 import type { ConsoleCall } from "../../../src/equivalence-checker/sandbox/stabilizer";
-
-function capture(overrides: Partial<ExecutionCapture> = {}): ExecutionCapture {
-  return {
-    return_value: "undefined",
-    return_is_undefined: true,
-    arg_snapshots: [],
-    exception: null,
-    console_log: [],
-    new_globals: [],
-    timed_out: false,
-    ...overrides,
-  };
-}
+import { capture } from "../../fixtures/capture";
 
 const logA: ConsoleCall = { method: "log", args: ["a", 1] };
 const logB: ConsoleCall = { method: "log", args: ["b"] };
