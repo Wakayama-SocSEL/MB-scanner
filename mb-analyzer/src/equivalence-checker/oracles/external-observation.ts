@@ -38,6 +38,10 @@ export function checkExternalObservation(
         detail: "console argument could not be serialized (circular reference)",
       };
     }
+    // 想定外エラーは握りつぶさずクラッシュさせる防御再スロー。現 serializer は
+    // SerializationError のみを投げる設計なので型上 unreachable。将来 serializer が
+    // 別例外を投げたときにサイレント誤判定になるのを防ぐ。
+    /* c8 ignore next 2 */
     throw e;
   }
 

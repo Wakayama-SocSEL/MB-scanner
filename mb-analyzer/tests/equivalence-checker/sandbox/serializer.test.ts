@@ -1,3 +1,15 @@
+/**
+ * 対象: serializeValue / serializeNumber (oracle 比較の末端で使う値 → 文字列の正規化)
+ * 観点: 2 つの値の等価性を文字列同士の完全一致で判定するため、区別したい差異が保存され、循環は拒絶されること
+ * 判定事項:
+ *   - 数値: NaN / Infinity / -Infinity / -0 / 0 を文字列上で区別
+ *   - primitive: undefined / null / boolean / 文字列エスケープ / bigint は "n" suffix
+ *   - symbol → "<symbol:desc>"、関数 → "<function>"
+ *   - 配列・オブジェクト: 要素連結、キーは sort 済みで順序非依存、ネスト再帰、NaN/-0 を保持
+ *   - Date / Map / Set は型名付きタグで serialize
+ *   - 循環参照 (自己参照・相互参照) は SerializationError を throw
+ *   - 同じサブツリーの複数埋込みは循環ではない (重複参照を許容)
+ */
 import { describe, expect, it } from "vitest";
 import {
   SerializationError,

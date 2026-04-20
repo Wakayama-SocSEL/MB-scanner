@@ -1,3 +1,12 @@
+/**
+ * 対象: Oracle O3 - checkException (exception)
+ * 観点: 両側の throw 状況と例外の ctor + message を比較する
+ * 判定事項:
+ *   - 両側とも正常終了 → not_applicable
+ *   - 両側例外かつ ctor と message が一致 → equal
+ *   - 両側例外だが ctor か message が異なる → not_equal
+ *   - 片方だけ例外 → not_equal
+ */
 import { describe, expect, it } from "vitest";
 import { checkException } from "../../../src/equivalence-checker/oracles/exception";
 import type { ExceptionCapture, ExecutionCapture } from "../../../src/equivalence-checker/sandbox/executor";

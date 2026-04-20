@@ -1,3 +1,12 @@
+/**
+ * 対象: Oracle O2 - checkArgumentMutation (argument-mutation)
+ * 観点: setup 由来の object/array に対する pre/post snapshot の差分を両側で比較する
+ * 判定事項:
+ *   - 両側とも setup で object/array を 1 つも定義していない → not_applicable
+ *   - snapshot の pre/post にシリアライズ不能マーカを含む → error
+ *   - key 集合と各 key の post が一致 → equal
+ *   - いずれかの key で post が異なる → not_equal（detail に差分 key を列挙）
+ */
 import { describe, expect, it } from "vitest";
 import { checkArgumentMutation } from "../../../src/equivalence-checker/oracles/argument-mutation";
 import type { ExecutionCapture } from "../../../src/equivalence-checker/sandbox/executor";

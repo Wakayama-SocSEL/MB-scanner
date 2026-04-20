@@ -1,3 +1,12 @@
+/**
+ * 対象: Oracle O4 - checkExternalObservation (external-observation)
+ * 観点: 外部観測可能な副作用（console 呼び出し列・新規に生えた global key 集合）の差分を両側で比較する
+ * 判定事項:
+ *   - 両側とも console 呼び出し・new_globals がどちらも空 → not_applicable
+ *   - console args の serialize 中に循環参照 → error
+ *   - console 列（method + args の順序含む完全一致）かつ new_globals key 集合一致 → equal
+ *   - console か new_globals のいずれかに差分 → not_equal（detail に差分カテゴリ）
+ */
 import { describe, expect, it } from "vitest";
 import { checkExternalObservation } from "../../../src/equivalence-checker/oracles/external-observation";
 import type { ExecutionCapture } from "../../../src/equivalence-checker/sandbox/executor";

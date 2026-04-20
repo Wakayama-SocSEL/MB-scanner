@@ -1,3 +1,16 @@
+/**
+ * 対象: checkEquivalence (top-level 合成: sandbox 実行 + 4 oracle 呼び出し + verdict 合成)
+ * 観点: 実機 vm で slow / fast を実行し、全 oracle を並列判定して最終 verdict を導くエンドツーエンド検証
+ * 判定事項:
+ *   - 等価な式 (`1+1` vs `2`) → equal、return_value oracle も equal
+ *   - Selakovic 反例 (`x % 2` vs `x & 1`, x=-3) → not_equal
+ *   - 両側 throw で ctor+msg 一致 → equal、片方だけ throw → not_equal
+ *   - setup で配列を共有し両側が同じ変異 → equal、異なる変異 → not_equal
+ *   - 副作用分離: slow の破壊的変更が fast に伝播しない
+ *   - console 出力差分 → not_equal
+ *   - 片方 timeout → not_equal (例外 oracle で検知)
+ *   - 4 oracle (return_value / argument_mutation / exception / external_observation) が必ず observations に揃う
+ */
 import { describe, expect, it } from "vitest";
 import { checkEquivalence } from "../../src/equivalence-checker/checker";
 

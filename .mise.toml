@@ -106,6 +106,13 @@ echo "Running vitest on mb-analyzer..."
 pnpm --prefix mb-analyzer run test
 """
 
+[tasks.test-analyzer-cov]
+description = "mb-analyzer (新 TypeScript 実装) の vitest をカバレッジ付きで実行する"
+run = """
+echo "Running vitest with coverage on mb-analyzer..."
+pnpm --prefix mb-analyzer run test:cov
+"""
+
 # =============================================================================
 # アーキテクチャ検証
 # =============================================================================

@@ -1,3 +1,15 @@
+/**
+ * 対象: CLI エントリ - runCheckEquivalenceBatch (batch モード: `mbs check-equivalence-batch`)
+ * 観点: JSONL stdin を 1 件 1 subprocess 起動せず逐次処理し、id を各結果にエコーバックする契約
+ * 判定事項:
+ *   - 複数行は入力順で stdout に出力される
+ *   - timeout_ms は必須、欠落/型不一致は error verdict を id 付きで返し他行に波及させない
+ *   - effective_timeout_ms でユーザ指定の timeout_ms が checker に届いたかを検証可能
+ *   - setup (string) は checker に届き、非 string は error verdict
+ *   - slow/fast が非 string、非 object 行、JSON parse 失敗行 → error verdict で他行は処理継続
+ *   - id 欠落時は id フィールド無しで返す
+ *   - 空入力は exit 0 + 空出力
+ */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runCheckEquivalenceBatch } from "../../src/cli/check-equivalence";
 
@@ -169,5 +181,78 @@ describe("runCheckEquivalenceBatch", () => {
     const result = getResult(parseOutput(spy.writes), 0);
     expect(result.id).toBeUndefined();
     expect(result.verdict).toBe("equal");
+  });
+
+  it("setup あり (string) の行は setup が checker に届く", async () => {
+    restoreStdin = feedStdin(
+      JSON.stringify({
+        id: "with_setup",
+        setup: "const base = 100;",
+        slow: "base + 1",
+        fast: "101",
+        timeout_ms: 5000,
+      }) + "\n",
+    );
+
+    const code = await runCheckEquivalenceBatch();
+
+    expect(code).toBe(0);
+    const result = getResult(parseOutput(spy.writes), 0);
+    expect(result.id).toBe("with_setup");
+    expect(result.verdict).toBe("equal");
+  });
+
+  it("setup が非 string の行は error verdict で id 付きで返す", async () => {
+    restoreStdin = feedStdin(
+      JSON.stringify({ id: "bad_setup", slow: "1", fast: "1", timeout_ms: 5000, setup: 42 }) +
+        "\n",
+    );
+
+    const code = await runCheckEquivalenceBatch();
+
+    expect(code).toBe(0);
+    const result = getResult(parseOutput(spy.writes), 0);
+    expect(result.id).toBe("bad_setup");
+    expect(result.verdict).toBe("error");
+    expect(result.error_message).toContain("setup");
+  });
+
+  it("timeout_ms が非 number の行は error verdict", async () => {
+    restoreStdin = feedStdin(
+      JSON.stringify({ id: "bad_to", slow: "1", fast: "1", timeout_ms: "5000" }) + "\n",
+    );
+
+    const code = await runCheckEquivalenceBatch();
+
+    expect(code).toBe(0);
+    const result = getResult(parseOutput(spy.writes), 0);
+    expect(result.id).toBe("bad_to");
+    expect(result.verdict).toBe("error");
+    expect(result.error_message).toContain("timeout_ms");
+  });
+
+  it("slow が非 string の行は error verdict", async () => {
+    restoreStdin = feedStdin(
+      JSON.stringify({ id: "bad_slow", slow: 1, fast: "1", timeout_ms: 5000 }) + "\n",
+    );
+
+    const code = await runCheckEquivalenceBatch();
+
+    expect(code).toBe(0);
+    const result = getResult(parseOutput(spy.writes), 0);
+    expect(result.verdict).toBe("error");
+    expect(result.error_message).toContain("slow");
+  });
+
+  it("非 object 行は error verdict (id は undefined)", async () => {
+    restoreStdin = feedStdin("123\n");
+
+    const code = await runCheckEquivalenceBatch();
+
+    expect(code).toBe(0);
+    const result = getResult(parseOutput(spy.writes), 0);
+    expect(result.id).toBeUndefined();
+    expect(result.verdict).toBe("error");
+    expect(result.error_message).toContain("JSON object");
   });
 });

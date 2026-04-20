@@ -1,3 +1,14 @@
+/**
+ * 対象: src/shared/types.ts (Python ↔ TypeScript の JSON 契約の末端定義)
+ * 観点: Python 側 Pydantic enum / StrEnum と同じ文字列値・同じ union 幅で型が narrow されていること
+ * 判定事項:
+ *   - VERDICT / ORACLE_VERDICT / ORACLE: Python 側 StrEnum と同一の文字列値 (runtime)
+ *   - Verdict / OracleVerdict / Oracle: union 型が Python と同じ列挙幅 (型レベル)
+ *   - ALL_ORACLES: 4 oracle を過不足なく列挙
+ *   - EquivalenceInput: slow/fast 必須、setup/timeout_ms 任意
+ *   - OracleObservation: JSON 往復でフィールド名と値を保持
+ *   - EquivalenceCheckResult: equal は observations 必須、error は error_message を伴える
+ */
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   ALL_ORACLES,

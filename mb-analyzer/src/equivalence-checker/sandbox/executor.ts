@@ -112,6 +112,9 @@ function snapshotValue(value: unknown): string {
     return serializeValue(value);
   } catch (e) {
     if (e instanceof SerializationError) return UNSERIALIZABLE_MARKER;
+    // 想定外エラーはサイレント握りつぶしを避けてクラッシュさせる防御再スロー。
+    // 現 serializer は SerializationError のみ投げる設計のため型上 unreachable。
+    /* c8 ignore next 2 */
     throw e;
   }
 }

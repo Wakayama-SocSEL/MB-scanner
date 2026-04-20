@@ -1,3 +1,13 @@
+/**
+ * 対象: Oracle O1 - checkReturnValue (return-value)
+ * 観点: 関数の戻り値を両側で serialize 後の文字列として完全一致比較する
+ * 判定事項:
+ *   - 片方でも例外発生 → not_applicable（例外は O3 に委譲）
+ *   - 両側とも戻り値なし (return_is_undefined) → not_applicable
+ *   - 片方でもシリアライズ不能（循環参照等 / UNSERIALIZABLE_MARKER） → error
+ *   - 片方だけ undefined、または値が異なる → not_equal
+ *   - serialize された文字列が完全一致 → equal
+ */
 import { describe, expect, it } from "vitest";
 import { checkReturnValue } from "../../../src/equivalence-checker/oracles/return-value";
 import type { ExecutionCapture } from "../../../src/equivalence-checker/sandbox/executor";

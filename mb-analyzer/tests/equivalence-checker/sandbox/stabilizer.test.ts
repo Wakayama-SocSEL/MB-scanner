@@ -1,3 +1,14 @@
+/**
+ * 対象: createStabilizedContext (vm context を作り、非決定性 API の遮断・固定化・console 記録を仕込む)
+ * 観点: 2 回の実行で同じ入力から同じ観測値が得られるよう、ホスト依存 API を sandbox 内で決定化・遮断すること
+ * 判定事項:
+ *   - Math.random: 決定的シードで同一値列、値域 [0, 1)、互いに異なる
+ *   - Date.now / new Date() / performance.now はすべて FROZEN_EPOCH_MS を返す
+ *   - setTimeout / setInterval の callback は呼ばれない (timer 実行禁止)
+ *   - process / require / eval / Function は undefined (host 逃げ道を遮断)
+ *   - console.log/error/warn/info/debug は consoleCalls に method+args で蓄積
+ *   - baselineKeys に stabilizer 注入済み key が含まれ、new_globals 差分計算の基準点になる
+ */
 import { describe, expect, it } from "vitest";
 import vm from "node:vm";
 import { createStabilizedContext, FROZEN_EPOCH_MS } from "../../../src/equivalence-checker/sandbox/stabilizer";
