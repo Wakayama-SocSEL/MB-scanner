@@ -3,6 +3,9 @@ import { UNSERIALIZABLE_MARKER, type ExecutionCapture } from "../sandbox/executo
 
 /**
  * O2: setup 由来 object/array の pre/post snapshot 差分比較。
+ * pre/post は body 実行前後の時間軸 (slow/fast のサイド軸とは別概念)。
+ * 概念モデル: ai-guide/code-map.md「観測軸: slow/fast と pre/post」
+ *
  * - 両側とも setup で object/array を 1 つも定義していない → not_applicable
  * - snapshot にシリアライズ不能マーカを含む → error
  * - key 集合と各 post が一致 → equal

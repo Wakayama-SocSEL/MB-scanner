@@ -1,5 +1,19 @@
 # アーキテクチャ・設計ガイド
 
+## ai-guide 3 軸の住み分け
+
+`ai-guide/` は用途別に 3 軸で構成されています。書きたい内容の語尾で振り分け、重複を避けてください:
+
+| 文書 | 性質 | 文体 | 想定読者 |
+|---|---|---|---|
+| **`architecture/`** (本文書) | **Contract** — 〜すべき / 〜禁止 / 〜と一致 | 表・条件文 | `check-architecture` skill, レビュー時の自分 |
+| [`quality-check/`](../quality-check/index.md) | **Process** — 〜を確認する / 〜で検証する | 手順書 | `check-tests` skill, QA |
+| [`code-map.md`](../code-map.md) | **Reference** — 〜する仕組み / 〜のため〜 | 物語・図・データフロー | 論文執筆、onboarding |
+
+**drift 防止**: 意味論的な詳細（オラクル責務・観測軸・verdict 合成など）は `code-map.md` に集約し、本文書からはリンクのみを置く。**矛盾時は architecture/ を正とする**（契約が優先）。
+
+---
+
 ## プロジェクト概要
 
 MB-Scanner は、GitHub 上の多数の JavaScript リポジトリに対して CodeQL クエリを体系的に実行し、さらに等価性検証器・Pruning・同値分割テストなどの AST ベース静的解析を組み合わせるバッチプラットフォームです。定量・定性的なデータセットを構築し、クエリの有効性を実世界のコードベースで検証することを目的としています。
