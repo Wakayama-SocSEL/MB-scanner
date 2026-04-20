@@ -48,8 +48,12 @@ fi
 # Step 2: cwd を退避（呼び出し元の cwd 状態に依存しないため）
 cd "$ORIGINAL_DIR"
 
-# Step 3: worktree 削除（pre-flight 通過済み前提なので --force は付けない）
-git worktree remove "$WORKTREE_DIR"
+# Step 3: worktree 削除
+# SKILL.md Step 0 で clean 状態を pre-flight 済み前提。
+# submodule を含む worktree では --force 無しだと
+# 「ディレクトリは消えたがメタデータ整理で失敗」という partial delete を起こし、
+# 呼び出し元の cwd が宙に浮く事故になるため必ず --force を付ける。
+git worktree remove --force "$WORKTREE_DIR"
 
 # Step 4: ベストエフォート pane close
 PANE_CLOSED=0
