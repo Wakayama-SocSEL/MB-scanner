@@ -16,7 +16,7 @@
 # 例（セットアップ不要な場合）:
 #   SETUP_COMMANDS=""
 # ──────────────────────────────────────────────────────────────────────────
-SETUP_COMMANDS="mise run python-deps"
+SETUP_COMMANDS="git submodule update --init --recursive && mise run python-deps"
 
 set -euo pipefail
 

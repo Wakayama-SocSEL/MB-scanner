@@ -15,6 +15,7 @@ outputs/
 *.log
 data/*
 !data/mb_scanner.db
+!data/selakovic-2016-issues
 
 # AI tmp files
 .ai/
