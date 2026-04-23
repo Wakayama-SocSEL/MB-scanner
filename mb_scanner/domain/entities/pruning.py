@@ -17,6 +17,9 @@ MAX_TIMEOUT_MS = 60_000
 DEFAULT_TIMEOUT_MS = 5_000
 DEFAULT_MAX_ITERATIONS = 1_000
 MIN_MAX_ITERATIONS = 1
+# Selakovic の pruning は 10^2 オーダで収束する想定。上限は桁違いに大きめに取り、
+# 悪意 / 誤記載 (2**63 など) を弾く防衛線として 10^5 とする。
+MAX_MAX_ITERATIONS = 100_000
 
 
 class PruningVerdict(StrEnum):
@@ -62,7 +65,9 @@ class PruningInput(BaseModel):
     fast: str = Field(max_length=MAX_CODE_LENGTH)
     setup: str = Field(default="", max_length=MAX_CODE_LENGTH)
     timeout_ms: int = Field(default=DEFAULT_TIMEOUT_MS, ge=MIN_TIMEOUT_MS, le=MAX_TIMEOUT_MS)
-    max_iterations: int = Field(default=DEFAULT_MAX_ITERATIONS, ge=MIN_MAX_ITERATIONS)
+    max_iterations: int = Field(
+        default=DEFAULT_MAX_ITERATIONS, ge=MIN_MAX_ITERATIONS, le=MAX_MAX_ITERATIONS
+    )
 
 
 class PruningResult(BaseModel):

@@ -66,6 +66,10 @@ class TestPruningInput:
         with pytest.raises(ValidationError):
             PruningInput(slow="x", fast="x", max_iterations=0)
 
+    def test_max_iterations_upper_bound(self) -> None:
+        with pytest.raises(ValidationError):
+            PruningInput(slow="x", fast="x", max_iterations=100_001)
+
     def test_code_length_bound(self) -> None:
         long = "x" * 1_000_001
         with pytest.raises(ValidationError):
