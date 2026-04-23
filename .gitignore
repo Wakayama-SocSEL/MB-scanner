@@ -23,6 +23,7 @@ data/*
 # Environment variables file
 .env
 tmp/
+/TODO.md
 
 codeql/queries
 node_modules/
