@@ -5,6 +5,7 @@
  *   - canonicalHash: 同一 AST を二度 parse しても同じ hash / 識別子名やリテラル値で区別される
  *   - collectSubtreeHashes: File 以下の全サブツリー hash を過不足なく集める
  *   - SubtreeDiff.isCommon: fast に同型サブツリーが存在するときのみ true
+ *   - 部分木マッチング: slow ノードが fast の左部分式として現れても common
  *   - Selakovic #1: slow の obj/key/arg-expr は common、hasOwnProperty は diff
  *   - エッジケース: 空ペア / 単一ノード / 同一ファイル (全ノード common)
  */
@@ -83,21 +84,23 @@ describe("SubtreeDiff.isCommon — 基本", () => {
     }
   });
 
-  it("fast に存在しないノードは diff 判定", () => {
+  it("fast の部分式として同型が存在するノードは common (a+b は (a+b)+c の左部分式)", () => {
+    // BinaryExpression の左結合で fast は ((a+b)+c) となり、slow の `a+b` は左部分木として同型
     const slow = parse("a + b");
     const fast = parse("a + b + c");
     const diff = new SubtreeDiff(slow, fast);
-    // slow 全体の BinaryExpression は fast に同型が存在しない (左結合で (a+b)+c になる)
     const stmt = slow.program.body[0];
     if (stmt?.type !== "ExpressionStatement") throw new Error("unexpected");
     expect(diff.isCommon(stmt.expression)).toBe(true);
-    // 上記は例として弱すぎるので、逆方向 (slow が fast にない形) で追加検証
-    const slow2 = parse("a - b");
-    const fast2 = parse("a + b");
-    const diff2 = new SubtreeDiff(slow2, fast2);
-    const stmt2 = slow2.program.body[0];
-    if (stmt2?.type !== "ExpressionStatement") throw new Error("unexpected");
-    expect(diff2.isCommon(stmt2.expression)).toBe(false);
+  });
+
+  it("fast に同型サブツリーが存在しないノードは diff (演算子違い)", () => {
+    const slow = parse("a - b");
+    const fast = parse("a + b");
+    const diff = new SubtreeDiff(slow, fast);
+    const stmt = slow.program.body[0];
+    if (stmt?.type !== "ExpressionStatement") throw new Error("unexpected");
+    expect(diff.isCommon(stmt.expression)).toBe(false);
   });
 
   it("空のペアは有効な SubtreeDiff を作れる", () => {

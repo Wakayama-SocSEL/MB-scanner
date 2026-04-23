@@ -68,9 +68,14 @@ class PruningInput(BaseModel):
 class PruningResult(BaseModel):
     """1 (slow, fast, setup) トリプルに対する pruning 最終結果
 
-    - ``verdict == PRUNED``: ``pattern_ast`` / ``pattern_code`` / ``placeholders`` が揃う
-    - ``verdict == INITIAL_MISMATCH``: slow ≢ fast のため pruning 前段で停止
-    - ``verdict == ERROR``: parse 失敗やタイムアウトなど予期しない失敗
+    verdict ごとに Node 側実装が **付与する想定** のフィールドは以下（スキーマでは任意）:
+
+    - ``verdict == PRUNED``: ``pattern_ast`` / ``pattern_code`` / ``placeholders`` / ``iterations`` を付与
+    - ``verdict == INITIAL_MISMATCH``: slow ≢ fast のため pruning 前段で停止、pattern 系は付与しない
+    - ``verdict == ERROR``: parse 失敗やタイムアウトなど予期しない失敗。``error_message`` を付与
+
+    スキーマ上は全て optional であり、verdict に応じた条件付き必須チェックは行わない
+    (Node 側実装との契約は Gateway 層 / integration test で確認する想定)。
     """
 
     model_config = ConfigDict(extra="ignore")
