@@ -1,10 +1,10 @@
 /**
  * 対象: src/pruning/ast/diff.ts の SubtreeDiff と canonicalHash
- * 観点: 任意のコード断片について「同じコードを 2 回 parse すれば全サブツリーが common」である不変条件
+ * 観点: ランダムな式について「同じソースから作った 2 つの AST は全サブツリーが common」を検証
  * 判定事項:
  *   - 同一ソースから生成した 2 つの File は互いに SubtreeDiff で全サブツリー common
  *   - 同一ソースの canonicalHash は等しい (決定性)
- *   - 構造違い (リテラル値 1 箇所変更) では少なくとも一部サブツリーが diff 判定になる
+ *   - リテラル値を 1 箇所変えると File レベル hash が変わる
  */
 import * as fc from "fast-check";
 import { describe, it } from "vitest";

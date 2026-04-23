@@ -57,12 +57,8 @@ export interface EquivalenceCheckResult {
   effective_timeout_ms?: number;
 }
 
-// ---------------------------------------------------------------------------
-// Pruning (Hydra 式 AST 差分ベース pruning)
-//
-// Python 側 (mb_scanner.domain.entities.pruning) と JSON シリアライゼーション互換。
-// 列挙値の文字列 / フィールド名の snake_case を厳密に揃える。
-// ---------------------------------------------------------------------------
+// Pruning 側の型 (Python: mb_scanner.domain.entities.pruning)。
+// 冒頭と同じく snake_case と列挙値文字列で JSON 互換を保つ。
 
 export const PRUNING_VERDICT = {
   PRUNED: "pruned",

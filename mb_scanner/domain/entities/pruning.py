@@ -54,8 +54,8 @@ class Placeholder(BaseModel):
 class PruningInput(BaseModel):
     """Node ランナーへ送る pruning 入力
 
-    ``setup`` は単数 (複数 setup は第 2 段階の軸に委ねる設計)。
     ``id`` はバッチ API で Python ↔ Node 間の順序暗黙依存を避ける optional マーカー。
+    ``setup`` を単数 string にした採用判断は ai-guide/adr/0004-pruning-setup-single.md 参照。
     """
 
     model_config = ConfigDict(extra="forbid")

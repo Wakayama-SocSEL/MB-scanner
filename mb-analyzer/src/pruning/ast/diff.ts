@@ -2,16 +2,14 @@ import { VISITOR_KEYS } from "@babel/types";
 import type { File, Node } from "@babel/types";
 
 /**
- * AST 差分フィルタ (GumTree top-down phase 相当)。
+ * slow のノードごとに「fast のどこかに同じノードがあるか」を判定する。
  *
- * slow 上のノード ``n`` について「fast のどこかに同型サブツリー ``n'`` が存在するか」を判定する。
- * 存在する場合そのノードは **共通 (common)**、しない場合は **差分 (diff)** と扱い、
- * pruning engine はこの判定を使って「必須ノード (= 差分)」を残し候補から除外する。
+ * 「同じ」はハッシュによる厳密一致で、タイプ・子・識別子名・リテラル値・演算子が
+ * すべて揃って初めて同じ扱い。例えば `arr[0]` と `arr[1]` は別物になる。
  *
- * 同型判定は正規化ハッシュによる厳密一致で行う。識別子名・リテラル値・構造を
- * 欠落なく保持するため、例えば ``arr[0]`` と ``arr[1]`` は異なるハッシュになる。
- *
- * 第 2 段階で必要になる bottom-up mapping (``mapTo``) は本 PR では未実装。
+ * 採用判断 (top-down subtree hash 自作 / bottom-up は非採用):
+ *   - ai-guide/adr/0002-babel-topdown-subtree-hash.md
+ *   - ai-guide/adr/0003-bottom-up-mapping-deferred.md
  */
 export class SubtreeDiff {
   private readonly fastHashes: Set<string>;
@@ -20,19 +18,15 @@ export class SubtreeDiff {
     this.fastHashes = collectSubtreeHashes(fast);
   }
 
+  /** node と同じノードが fast のどこかにあるか。 */
   isCommon(node: Node): boolean {
     return this.fastHashes.has(canonicalHash(node));
   }
 }
 
-// ---------------------------------------------------------------------------
-// 純粋内部ヘルパ (module 内のみで使用、pruning/index.ts からは非 export)
-// ---------------------------------------------------------------------------
-
-// ノード型判定や子ノード検査では不要だがシリアライズでは保持してしまう
-// メタデータ系キー。ハッシュには含めない。
-// File ノードの ``comments`` / ``errors`` もソース位置情報を含むためここで弾く
-// (``comments`` はそもそも差分判定に無関係、``errors`` は errorRecovery=false なら空)。
+// Babel AST ノードには loc / start / end / comments / extra などソース位置・表示系の
+// プロパティが含まれる。同じコードを再 parse しても微妙にぶれる値が多いので、ハッシュ
+// からはまとめて除外する。
 const METADATA_KEYS: ReadonlySet<string> = new Set([
   "type",
   "loc",
@@ -53,12 +47,11 @@ function isNode(value: unknown): value is Node {
     typeof value === "object" &&
     value !== null &&
     "type" in value &&
-    typeof (value as { type: unknown }).type === "string"
+    typeof value.type === "string"
   );
 }
 
-// VISITOR_KEYS で辿れる子は Babel の型定義上 Node | null | Array<Node | null> のみ。
-// プリミティブは現れないのでここでは扱わない。
+// VISITOR_KEYS で辿れる子は Node / null / それらの配列のいずれか。
 type VisitorChild = Node | null | undefined | Array<Node | null | undefined>;
 
 function hashChild(child: VisitorChild): string {
@@ -69,22 +62,12 @@ function hashChild(child: VisitorChild): string {
   return canonicalHash(child);
 }
 
-// ---------------------------------------------------------------------------
-// SubtreeDiff の実装本体 (ハッシュ計算 / サブツリー収集)
-// プロダクトコードでは SubtreeDiff 経由で呼ばれる。pruning/index.ts には非公開
-// だが、hash 決定性とサブツリー網羅は単体テストで直接検証したいためファイル内
-// では export している (いわゆる package-private 相当)。
-// ---------------------------------------------------------------------------
-
 /**
- * 情報落ち最小の正規化ハッシュ。
+ * ノードの正規化ハッシュ。
  *
- * フォーマット: ``Type{valueFields}(childEntries)``
- * - valueFields: VISITOR_KEYS に含まれない own property を alphabetical 順に ``key=JSON`` 連結
- *   (識別子名 / リテラル値 / 演算子 / computed 等の構造的判定に必要な情報を保持)
- * - childEntries: VISITOR_KEYS で列挙される子ノード。null は ``_``、配列は ``[...]`` で包む
- *
- * 同一 AST を再度 parse したら同一ハッシュになる (``loc``/コメント/``extra`` は除外)。
+ * タイプ・子ノード・識別子名・リテラル値・演算子・`computed` などの構造フラグが
+ * 全部一致すれば等しいハッシュを持つ。ソース位置・コメント・`extra` (原表記情報)
+ * は計算に含めない — METADATA_KEYS 参照。
  */
 export function canonicalHash(node: Node): string {
   const visitorKeys = VISITOR_KEYS[node.type] ?? [];
@@ -108,11 +91,9 @@ export function canonicalHash(node: Node): string {
   return `${node.type}{${valueEntries.join(",")}}(${childEntries.join(",")})`;
 }
 
+// 判断: ai-guide/adr/0001-pruning-ast-traversal.md
 /**
- * File 全体を再帰的に走査し、**全サブツリー**の canonical ハッシュを集める。
- *
- * ``@babel/traverse`` を使わず軽量な再帰で済ませているのは、traverse の NodePath 構築が
- * 数十〜数百倍遅いため。pruning は何度も呼ばれる hot path なので直書きしている。
+ * File とその全サブツリーのハッシュを Set で返す。
  */
 export function collectSubtreeHashes(file: File): Set<string> {
   const set = new Set<string>();

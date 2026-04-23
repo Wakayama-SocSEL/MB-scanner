@@ -4,7 +4,7 @@
  * 判定事項:
  *   - canonicalHash: 同一 AST を二度 parse しても同じ hash / 識別子名やリテラル値で区別される
  *   - collectSubtreeHashes: File 以下の全サブツリー hash を過不足なく集める
- *   - SubtreeDiff.isCommon: fast に同型サブツリーが存在するときのみ true
+ *   - SubtreeDiff.isCommon: fast に同じノードが存在するときのみ true
  *   - 部分木マッチング: slow ノードが fast の左部分式として現れても common
  *   - Selakovic #1: slow の obj/key/arg-expr は common、hasOwnProperty は diff
  *   - エッジケース: 空ペア / 単一ノード / 同一ファイル (全ノード common)
