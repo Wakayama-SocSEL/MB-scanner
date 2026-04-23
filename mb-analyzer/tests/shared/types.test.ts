@@ -13,7 +13,7 @@
  *   - PRUNING_VERDICT / PLACEHOLDER_KIND: Python 側 StrEnum と同一の文字列値 (runtime)
  *   - PruningVerdict / PlaceholderKind: union 型が Python と同じ列挙幅 (型レベル)
  *   - Placeholder: JSON 往復でフィールド名 (id / kind / original_snippet) と値を保持
- *   - PruningInput: slow/fast/setup 必須、id/timeout_ms/max_iterations 任意
+ *   - PruningInput: slow/fast 必須、id/setup/timeout_ms/max_iterations 任意 (EquivalenceInput と同じく setup は空デフォルト)
  *   - PruningResult: pruned は pattern_code/placeholders/iterations で表現、initial_mismatch と error は pattern なしで成立
  */
 import { describe, expect, expectTypeOf, it } from "vitest";
@@ -191,8 +191,8 @@ describe("Placeholder", () => {
 });
 
 describe("PruningInput", () => {
-  it("slow / fast / setup 必須、id / timeout_ms / max_iterations は任意", () => {
-    const minimal: PruningInput = { slow: "x", fast: "x", setup: "" };
+  it("slow / fast 必須、setup / id / timeout_ms / max_iterations は任意 (EquivalenceInput precedent に揃える)", () => {
+    const minimal: PruningInput = { slow: "x", fast: "x" };
     const full: PruningInput = {
       id: "case-01",
       slow: "arr[0]",
@@ -201,7 +201,8 @@ describe("PruningInput", () => {
       timeout_ms: 5000,
       max_iterations: 100,
     };
-    expect(minimal.setup).toBe("");
+    expect(minimal.setup).toBeUndefined();
+    expect(full.setup).toBe("const arr = [1, 2, 3];");
     expect(full.max_iterations).toBe(100);
   });
 });

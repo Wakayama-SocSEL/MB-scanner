@@ -88,7 +88,7 @@ export interface PruningInput {
   id?: string;
   slow: string;
   fast: string;
-  setup: string;
+  setup?: string;
   timeout_ms?: number;
   max_iterations?: number;
 }
