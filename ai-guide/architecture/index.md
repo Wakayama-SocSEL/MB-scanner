@@ -1,16 +1,17 @@
 # アーキテクチャ・設計ガイド
 
-## ai-guide 3 軸の住み分け
+## ai-guide 4 軸の住み分け
 
-`ai-guide/` は用途別に 3 軸で構成されています。書きたい内容の語尾で振り分け、重複を避けてください:
+`ai-guide/` は用途別に 4 軸で構成されています。書きたい内容の語尾で振り分け、重複を避けてください:
 
 | 文書 | 性質 | 文体 | 想定読者 |
 |---|---|---|---|
 | **`architecture/`** (本文書) | **Contract** — 〜すべき / 〜禁止 / 〜と一致 | 表・条件文 | `check-architecture` skill, レビュー時の自分 |
 | [`quality-check/`](../quality-check/index.md) | **Process** — 〜を確認する / 〜で検証する | 手順書 | `check-tests` skill, QA |
 | [`code-map.md`](../code-map.md) | **Reference** — 〜する仕組み / 〜のため〜 | 物語・図・データフロー | 論文執筆、onboarding |
+| [`adr/`](../adr/README.md) | **Decisions** — 〜を採用し、〜を却下した | Context / 選択肢 / 決定 / トリガー | 設計判断を見直す人、履歴を追いたい人 |
 
-**drift 防止**: 意味論的な詳細（オラクル責務・観測軸・verdict 合成など）は `code-map.md` に集約し、本文書からはリンクのみを置く。**矛盾時は architecture/ を正とする**（契約が優先）。
+**drift 防止**: 意味論的な詳細（オラクル責務・観測軸・verdict 合成など）は `code-map.md` に集約し、本文書からはリンクのみを置く。**矛盾時は architecture/ を正とする**（契約が優先）。ADR は採用判断の根拠を残すだけで、現行契約は必ず `architecture/` 側に反映する。
 
 ---
 
@@ -44,6 +45,31 @@ MB-Scanner は、GitHub 上の多数の JavaScript リポジトリに対して C
 
 - **Python 側 (`mb_scanner/`)**: GitHub 検索、SQLite 永続化、CodeQL CLI 連携、並列バッチ実行 (`ThreadPoolExecutor`)、CLI エントリポイント
 - **TypeScript 側 (`mb-analyzer/`)**: AST 解析とサンドボックス実行を担う薄い CLI。Python 側から `dist/cli.js` を subprocess 起動して stdin/stdout の JSON で呼び出される
+
+---
+
+## コメントとドキュメントの層分離
+
+コードとドキュメントに残す情報は「読み手が何をしたいか」で層を分けます。
+
+| 読み手の目的 | 置き場所 |
+|---|---|
+| 関数を **使う** (契約・挙動を知る) | JSDoc (TS) / docstring (Python) |
+| **自明でない局所的な工夫** を理解する | ソース内 `//` / `#` コメント |
+| 採用判断を **変える** (却下した選択肢を見直す) | [`adr/`](../adr/README.md) |
+| 日付軸のマイルストーン | `TODO.md` |
+
+**判定基準**: 「読み手は *使う* 人か、*変える* 人か」。使う人向けなら JSDoc / docstring、変える人向けなら ADR。
+
+### 具体原則
+
+- **JSDoc / docstring は契約のみ**: 不変条件・前提・失敗条件を書く。採用理由や却下した選択肢は書かない (それは ADR の仕事)
+- **`//` / `#` は自明でない時だけ**: 関数名とシグネチャから読み取れる内容は書かない
+- **section divider コメント** (例: `// --- 内部ヘルパ ---`) は原則避ける。export 境界や関数分割で区切りは自明
+- **ADR への参照**: `// 判断: ai-guide/adr/NNNN-xxx.md` 形式で 1 行。理由や却下案は ADR 側に
+- **言葉使い**: 具体的に (「ms オーダで重い」のような未計測の誇張は避ける、計測値がなければ定性的に書く)
+
+言語固有の書き方は [`mb-scanner.md`](mb-scanner.md) / [`mb-analyzer.md`](mb-analyzer.md) を参照。
 
 ---
 

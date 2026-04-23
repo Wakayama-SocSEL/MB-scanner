@@ -149,6 +149,17 @@ mb-analyzer-legacy/           # [DEPRECATED] 旧 pnpm workspace monorepo
 - **ESM インポートは相対パス + 拡張子なし** (`import { foo } from "./bar"` 形式)
 - **`import type` の強制**: `@typescript-eslint/consistent-type-imports` で型専用 import を使い分ける
 
+### JSDoc とコメント
+
+共通原則は [`index.md` の「コメントとドキュメントの層分離」](index.md#コメントとドキュメントの層分離) 参照。TS 側の具体化:
+
+- **`/** */` JSDoc**: 関数・クラスの **契約** に絞る。不変条件 / 前提 / 失敗条件が中心で、採用理由・却下した選択肢は ADR へ
+- **JSDoc タグ** (`@param` / `@returns` / `@throws`): 使うなら統一。一部だけタグ付ける混在は避ける。自由記述の散文だけで十分なことも多い
+- **`//` 前置コメント**: 自明でない局所的な工夫の 1〜2 行説明に使う。シグネチャから読める内容は書かない
+- **section divider** (例: `// --- 内部ヘルパ ---`) は避ける。export 有無と関数名で区切りは伝わる
+- **export for testing の理由説明を JSDoc に書かない**: 参照元 (`tests/`) を見れば自明で冗長
+- **ADR 参照**: `// 判断: ai-guide/adr/NNNN-xxx.md` 1 行に絞る
+
 ### 静的解析ツール
 
 - **Linter**: ESLint (`mise run lint-analyzer`)
