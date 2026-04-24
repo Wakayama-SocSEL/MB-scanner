@@ -7,7 +7,7 @@ export default defineConfig({
       {
         test: {
           name: "unit",
-          include: ["tests/{cli,equivalence-checker,shared}/**/*.test.ts"],
+          include: ["tests/{cli,equivalence-checker,pruning,shared}/**/*.test.ts"],
           environment: "node",
         },
       },

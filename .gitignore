@@ -30,6 +30,12 @@ node_modules/
 mb-analyzer/**/dist/
 mb-analyzer/**/node_modules/
 
+# Coverage artifacts
+.coverage
+coverage/
+htmlcov/
+mb-analyzer/coverage/
+
 # Editor / local tooling
 .vscode/
 .mise/

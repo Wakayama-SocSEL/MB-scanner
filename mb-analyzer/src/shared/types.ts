@@ -56,3 +56,48 @@ export interface EquivalenceCheckResult {
   error_message?: string | null;
   effective_timeout_ms?: number;
 }
+
+// Pruning 側の型 (Python: mb_scanner.domain.entities.pruning)。
+// 冒頭と同じく snake_case と列挙値文字列で JSON 互換を保つ。
+
+export const PRUNING_VERDICT = {
+  PRUNED: "pruned",
+  INITIAL_MISMATCH: "initial_mismatch",
+  ERROR: "error",
+} as const;
+export type PruningVerdict = (typeof PRUNING_VERDICT)[keyof typeof PRUNING_VERDICT];
+
+export const PLACEHOLDER_KIND = {
+  EXPRESSION: "expression",
+  STATEMENT: "statement",
+  IDENTIFIER: "identifier",
+} as const;
+export type PlaceholderKind = (typeof PLACEHOLDER_KIND)[keyof typeof PLACEHOLDER_KIND];
+
+export interface Placeholder {
+  id: string;
+  kind: PlaceholderKind;
+  original_snippet: string;
+}
+
+export interface PruningInput {
+  id?: string;
+  slow: string;
+  fast: string;
+  setup?: string;
+  timeout_ms?: number;
+  max_iterations?: number;
+}
+
+export interface PruningResult {
+  id?: string;
+  verdict: PruningVerdict;
+  pattern_ast?: unknown;
+  pattern_code?: string;
+  placeholders?: Placeholder[];
+  iterations?: number;
+  node_count_before?: number;
+  node_count_after?: number;
+  effective_timeout_ms?: number;
+  error_message?: string | null;
+}
