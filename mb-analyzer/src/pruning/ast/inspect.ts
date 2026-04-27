@@ -1,3 +1,4 @@
+import { VISITOR_KEYS } from "@babel/types";
 import type { File, Node } from "@babel/types";
 
 import { tryGenerateNode } from "./parser";
@@ -7,27 +8,38 @@ import { tryGenerateNode } from "./parser";
  */
 
 /**
- * File に含まれるノード総数を数える。`type` プロパティを持つオブジェクトを
- * ノードとみなす単純走査で、循環参照は想定しない (Babel AST は非循環)。
+ * File に含まれる AST ノード総数を `VISITOR_KEYS` ベースで数える。
+ * `comments` / `tokens` のように `type` を持つが Node ではないメタ情報は対象外。
  */
 export function countNodes(file: File): number {
   let count = 0;
-  function walk(node: unknown): void {
-    if (node === null || node === undefined) return;
-    if (Array.isArray(node)) {
-      for (const n of node as unknown[]) walk(n);
-      return;
-    }
-    if (typeof node !== "object") return;
-    const obj = node as { type?: unknown };
-    if (typeof obj.type !== "string") return;
+  function walk(node: Node): void {
     count += 1;
-    for (const [, v] of Object.entries(node as Record<string, unknown>)) {
-      if (v !== null && typeof v === "object") walk(v);
+    const visitorKeys = VISITOR_KEYS[node.type] ?? [];
+    const record = node as unknown as Record<string, unknown>;
+    for (const key of visitorKeys) {
+      const child = record[key];
+      if (child === null || child === undefined) continue;
+      if (Array.isArray(child)) {
+        for (const c of child as unknown[]) {
+          if (isNode(c)) walk(c);
+        }
+      } else if (isNode(child)) {
+        walk(child);
+      }
     }
   }
   walk(file);
   return count;
+}
+
+function isNode(value: unknown): value is Node {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    typeof (value as { type: unknown }).type === "string"
+  );
 }
 
 /**

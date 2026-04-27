@@ -1,4 +1,4 @@
-import type { File, Node } from "@babel/types";
+import type { File } from "@babel/types";
 
 import { checkEquivalence } from "../equivalence-checker";
 import {
@@ -117,23 +117,18 @@ export async function prune(input: PruningInput): Promise<PruningResult> {
   }
 
   // Phase 2: AST 差分フィルタ + 候補列挙 + DFS 走査
+  // 1 回 prune に成功したら AST が変わるので候補を再列挙する。再列挙のたびに
+  // SubtreeDiff も計算し直す。失敗候補のクロスパス dedup は将来の最適化として保留
+  // (canonical hash ベースで実装する余地あり)。
   const placeholders: Placeholder[] = [];
   let iterations = 0;
   const startedAt = Date.now();
 
-  // 非等価/error 判定が出たノード (必須扱い) を記録。再列挙で同じ位置を
-  // 再度試さないよう、canonicalHash ではなく参照同一性で素通しする。
-  const essentialNodes = new WeakSet<Node>();
-
-  // 1 回 prune に成功したら候補は再列挙する (AST 構造が変わっているため)。
-  // ただし必須と判定された候補は同一 AST 上で再試行しないので、essentialNodes で除外。
   while (iterations < cfg.max_iterations) {
     if (Date.now() - startedAt >= cfg.total_budget_ms) break;
 
     const diff = new SubtreeDiff(slowAst, fastAst);
-    const candidates = enumerateCandidates(slowAst, diff).filter(
-      (c) => !essentialNodes.has(c.node),
-    );
+    const candidates = enumerateCandidates(slowAst, diff);
     if (candidates.length === 0) break;
 
     const prunedInThisPass = await tryPruneCandidates({
@@ -141,15 +136,13 @@ export async function prune(input: PruningInput): Promise<PruningResult> {
       slowAst,
       currentSlowCode,
       cfg,
-      essentialNodes,
       placeholders,
       startedAt,
       iterations,
     });
 
-    if (prunedInThisPass === null) break; // budget 切れ
     iterations = prunedInThisPass.iterations;
-    if (!prunedInThisPass.pruned) break; // もう縮まない
+    if (!prunedInThisPass.pruned) break; // もう縮まない or budget 切れ
 
     slowAst = prunedInThisPass.nextAst;
     currentSlowCode = prunedInThisPass.nextCode;
@@ -175,7 +168,6 @@ interface TryPruneInput {
   readonly slowAst: File;
   readonly currentSlowCode: string;
   readonly cfg: ResolvedConfig;
-  readonly essentialNodes: WeakSet<Node>;
   readonly placeholders: Placeholder[];
   readonly startedAt: number;
   readonly iterations: number;
@@ -190,22 +182,25 @@ interface TryPruneResult {
 
 /**
  * 現在の候補リストを順に試し、最初に成功した 1 候補で AST を更新して返す。
- * どの候補も成功しなければ `pruned=false`。budget 切れは null を返す。
+ * 全候補が失敗、または budget 切れの場合は `pruned=false` を返し、`iterations` は
+ * 試行で消費した分まで反映済み。
  */
-async function tryPruneCandidates(args: TryPruneInput): Promise<TryPruneResult | null> {
-  const { candidates, slowAst, currentSlowCode, cfg, essentialNodes, placeholders, startedAt } = args;
+async function tryPruneCandidates(args: TryPruneInput): Promise<TryPruneResult> {
+  const { candidates, slowAst, currentSlowCode, cfg, placeholders, startedAt } = args;
   let iterations = args.iterations;
+  const stop = (): TryPruneResult => ({
+    pruned: false,
+    nextAst: slowAst,
+    nextCode: currentSlowCode,
+    iterations,
+  });
 
   for (const candidate of candidates) {
-    if (iterations >= cfg.max_iterations) return null;
-    if (Date.now() - startedAt >= cfg.total_budget_ms) return null;
+    if (iterations >= cfg.max_iterations) return stop();
+    if (Date.now() - startedAt >= cfg.total_budget_ms) return stop();
 
     const handler = handlerForNode(candidate.node);
-    if (handler === null) {
-      // whitelist 外の型 (通常 enumerateCandidates で弾かれるが念のため)
-      essentialNodes.add(candidate.node);
-      continue;
-    }
+    if (handler === null) continue; // whitelist 外 (通常 enumerateCandidates で弾かれる)
 
     const placeholderId = `$P${placeholders.length}`;
     const replaced = replaceNode({
@@ -216,11 +211,7 @@ async function tryPruneCandidates(args: TryPruneInput): Promise<TryPruneResult |
       mode: handler.mode,
       placeholderId,
     });
-    if (replaced === null) {
-      // round-trip 失敗 → 必須扱い
-      essentialNodes.add(candidate.node);
-      continue;
-    }
+    if (replaced === null) continue; // round-trip 失敗
 
     iterations += 1;
     const result = await checkEquivalence({
@@ -243,10 +234,8 @@ async function tryPruneCandidates(args: TryPruneInput): Promise<TryPruneResult |
         iterations,
       };
     }
-
-    // 等価でない (or error) → この候補は必須
-    essentialNodes.add(candidate.node);
+    // 等価でない (or error) → 次候補へ
   }
 
-  return { pruned: false, nextAst: slowAst, nextCode: currentSlowCode, iterations };
+  return stop();
 }

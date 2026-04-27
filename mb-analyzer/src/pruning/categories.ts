@@ -12,9 +12,7 @@ import { NODE_CATEGORY, type NodeCategory } from "./constants";
  * 置換アルゴリズム選択) と公開 API の `PlaceholderKind` (Placeholder.kind) を 1 行で
  * 対応付ける。新しい placeholder kind を追加する際の drift 面を 1 箇所に集約する目的。
  *
- * 内部 mode と公開 kind を別の型に保つ理由は ai-guide/code-map.md 参照: 将来「同じ
- * PlaceholderKind に複数 mode (例: statement に deleteStatement と wildcardStatement)」が
- * 必要になった際、ReplacementMode 側だけ枝分かれさせられる余地を残す。
+ * 判断: ai-guide/code-map.md (Pruning エンジン §置換操作の粒度)
  */
 export interface CategoryHandler {
   readonly mode: ReplacementMode;
