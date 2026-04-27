@@ -22,6 +22,12 @@
   - [観測軸: slow/fast と pre/post](#観測軸-slowfast-と-prepost)
   - [4 オラクルの責務分担](#4-オラクルの責務分担)
   - [オラクル間の排他ルールと `not_applicable` の意義](#オラクル間の排他ルールと-not_applicable-の意義)
+- [Pruning エンジン](#pruning-エンジン)
+  - [データフロー](#データフロー)
+  - [候補ノード決定の 3 段フィルタ](#候補ノード決定の-3-段フィルタ)
+  - [置換操作の粒度 (削除 vs ワイルドカード化)](#置換操作の粒度-削除-vs-ワイルドカード化)
+  - [pruning の正確性 — 多層防御](#pruning-の正確性--多層防御)
+  - [文法由来 blacklist の網羅性](#文法由来-blacklist-の網羅性)
 
 （sandbox パイプライン / verdict 合成 / Python↔Node JSON 往復 の詳細は今後追加予定）
 
@@ -170,3 +176,90 @@ if (slow.exception !== null || fast.exception !== null) {
 - **検証器を他研究で再利用する場合は拡張を検討**: 特に #1 (primitive tracking) と #2 (new_globals 値比較) は素直な拡張で塞げる。#3 の非同期対応は sandbox の大規模改修が必要
 - **論文の妥当性の脅威には 1 行で明示**: `current-research.md` §妥当性の脅威に「等価性検証器の観測範囲は object/array mutation / 戻り値 / 例外 / console+globals key に限定される」旨を記載する
 - **Future Work に予約**: 穴 1〜4 を塞いだ一般化検証器を候補として残す
+
+---
+
+## Pruning エンジン
+
+第 1 段階 (構造パターン導出) の本体。`(slow, fast, setup)` トリプルから **ワイルドカード付きの最小構造パターン** を出力する。実装は `mb-analyzer/src/pruning/` 配下。研究方針は [`current-research.md` §第 1 段階](current-research.md#第-1-段階-実行ベース-hydra-式-pruning) を参照。
+
+### データフロー
+
+```
+PruningInput (slow, fast, setup, timeout_ms, max_iterations)
+       ↓
+    parse (slow & fast)                          ← ast/parser.ts
+       ↓
+    checkEquivalence(setup, slow, fast)          ← 初回検証 (等価性検証器を直接呼ぶ)
+       ├─ not_equal → verdict = initial_mismatch で終了
+       ├─ error     → verdict = error で終了
+       └─ equal     ↓
+    SubtreeDiff(slow, fast)                      ← ast/diff.ts: fast 側の全サブツリー hash
+       ↓
+    loop (max_iterations / total_budget_ms まで):
+       enumerateCandidates(slow, diff)           ← ast/candidates.ts: 3 段フィルタ + size 降順
+       for 各候補 (先頭から):
+         replaceNode → generate → parse          ← ast/replace.ts: 1 箇所書き換え + round-trip
+         checkEquivalence(setup, slow', fast)    ← L4 validation
+         ├─ equal  → AST 更新 + placeholder 記録 → 次ループで再列挙
+         └─ その他 → 必須ノード扱い (WeakSet に記録)
+       ↓
+    PruningResult (pattern_ast, pattern_code, placeholders, iterations)
+```
+
+### 候補ノード決定の 3 段フィルタ
+
+`enumerateCandidates` は以下の条件をすべて満たすノードに限定する。
+
+| # | フィルタ | 目的 | 実装 |
+|---|---|---|---|
+| 1 | 型 whitelist | pruning 可能な AST 型 (Statement / Expression / Identifier の 3 分類) のみ残す | `pruning/constants.ts` の `NODE_CATEGORY` keys |
+| 2 | 親子位置 blacklist | 親 field validator が置換後の型を受理しない位置を**文法由来で自動判定**し除外 (ADR-0005) | `pruning/ast/grammar-blacklist.ts` の `getGrammarBlacklist()` |
+| 3 | AST 差分フィルタ | fast に同型ノードが存在する「共通ノード」のみに絞る (差分ノードは必須扱いで保護) | `pruning/ast/diff.ts` の `SubtreeDiff.isCommon` |
+
+`NODE_CATEGORY` は「候補型の分類」と「置換モードの選択」の両方を単一の真実の源泉にするためにモジュール直下に置いている (`engine.ts` の `modesForNode` もここから派生)。新しい型を pruning 対象に加えるときは `constants.ts` の 1 エントリ更新で両者に反映される。
+
+### 置換操作の粒度 (削除 vs ワイルドカード化)
+
+候補ノードの category で置換モードが 1:1 に決まる (`engine.ts` の `MODE_BY_CATEGORY`)。**「削除」と呼べる操作は statement カテゴリへの `EmptyStatement` 置換のみ** で、最小粒度は 1 Statement ノード。
+
+| カテゴリ | 置換モード | 置換後 | 操作の意味 |
+|---|---|---|---|
+| statement | `deleteStatement` | `EmptyStatement` (`;`) | **削除** |
+| identifier | `wildcardIdentifier` | `$VAR` (Identifier) | ワイルドカード化 (任意の識別子) |
+| expression | `wildcardExpression` | `$Pn` (StringLiteral) | ワイルドカード化 (任意の式) |
+
+statement カテゴリは `IfStatement` / `ExpressionStatement` / `VariableDeclaration` / `BlockStatement` / `ReturnStatement` / `ThrowStatement` の 6 型 (`constants.ts:NODE_CATEGORY`)。Statement 未満の粒度 (式単独や宣言の一部) は「削除」できず、必ず wildcard 化される。
+
+ただし `body: [s1, s2, s3]` のような Statement 配列では `replaceNode` の `listIndex` 指定で 1 要素だけ `EmptyStatement` 化できるので、**隣接 Statement を残したまま 1 個ずつ削除する** ことは可能 (`replace.ts:applyReplacement`)。
+
+### pruning の正確性 — 多層防御
+
+候補置換が「文法的・意味論的に不正」になる経路は **4 層の validation で段階的に排除** される。
+
+| 層 | チェック内容 | 実装箇所 | 失敗時の挙動 |
+|---|---|---|---|
+| L1 | 静的除外 (文法由来 blacklist) | `@babel/types` の `NODE_FIELDS`/`NODE_UNION_SHAPES__PRIVATE` から自動導出したカテゴリ別ルール (ADR-0005) | 候補リストから事前除外 (試行コスト削減) |
+| L2 | Babel 型検査 | AST ビルダー (`identifier()`, `stringLiteral()` 等) が型不整合を throw | `replaceNode` が null → スキップ |
+| L3 | round-trip 検証 | 置換後 AST を generate → parse で復元可能性を確認 | parse 失敗 → null → スキップ |
+| L4 | 意味論的等価性 | `checkEquivalence` を sandbox 実行 | `not_equal` / `error` → 必須ノード扱い |
+
+**L1 は効率化最適化に過ぎず、正確性は L2〜L4 の積で担保される**。L1 が漏れていても誤 prune (unsound な縮小) は発生せず、未除外の試行が sandbox 実行まで到達して L4 で弾かれるだけ (コストが増えるのみ)。
+
+### 文法由来 blacklist の網羅性
+
+L1 blacklist は `@babel/types` の `NODE_FIELDS[parent][key].validate` introspection (`oneOfNodeTypes` / `chainOf` / `NODE_UNION_SHAPES__PRIVATE`) から起動時 1 回だけ計算される (ADR-0005; `grammar-blacklist.ts`)。ルールは 3 カテゴリ (statement / identifier / expression) 別に、親 × 子位置で自動生成される。
+
+カバーされる位置の例 (列挙は自動):
+
+- **LVal 位置**: `ForIn/OfStatement.left`, `AssignmentExpression.left`, `VariableDeclarator.id`, `CatchClause.param`
+- **Identifier-only 位置**: `MemberExpression.property (computed=false)`, `Object/ClassProperty/Method.key (computed=false)`, `Labeled/Break/ContinueStatement.label`, `Function*.id`, `Function*.params`
+- **destructuring LVal**: `RestElement.argument`, `ArrayPattern.elements`, `ObjectPattern.properties`
+- **module / TS 系**: `ImportSpecifier` / `ExportSpecifier` 識別子、`PrivateName`、`TSTypeAnnotation` — `NODE_CATEGORY` にない型は候補 whitelist 段階で既に弾かれるが、将来拡張時にも自動で L1 が追従する
+
+**唯一の意図的 diff**: `UpdateExpression.argument` は旧手書き blacklist では除外していたが、文法上は `Expression` alias を受理するため自動導出では除外しない。意味論的に誤った prune は L4 等価性検証で弾く方針 (詳細は ADR-0005)。
+
+論文上の扱い:
+
+- pruning 候補除外は「**効率最適化**」として位置づけ、unsoundness の議論とは独立に扱う ([`current-research.md` §Unsoundness の緩和](current-research.md#第-1-段階-実行ベース-hydra-式-pruning) の 3 点目)
+- blacklist は Selakovic dataset に依存せず `@babel/types` の文法メタデータから mechanically 導出される、と明言できる (dataset leak 回避)
