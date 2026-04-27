@@ -1,22 +1,20 @@
-import generateModule from "@babel/generator";
 import type { File, Node } from "@babel/types";
 
 import { checkEquivalence } from "../equivalence-checker";
 import {
-  PLACEHOLDER_KIND,
   PRUNING_VERDICT,
   VERDICT,
   type Placeholder,
-  type PlaceholderKind,
   type PruningInput,
   type PruningResult,
 } from "../shared/types";
 
 import { enumerateCandidates, type CandidatePath } from "./ast/candidates";
 import { SubtreeDiff } from "./ast/diff";
-import { parse } from "./ast/parser";
-import { replaceNode, type ReplacementMode } from "./ast/replace";
-import { NODE_CATEGORY, type NodeCategory } from "./constants";
+import { countNodes, snippetOfNode } from "./ast/inspect";
+import { generate, parse } from "./ast/parser";
+import { replaceNode } from "./ast/replace";
+import { handlerForNode } from "./categories";
 
 /**
  * Hydra 式実行ベース pruning の本体。
@@ -64,81 +62,6 @@ function resolveBudget(input: PruningInput): ResolvedConfig {
     max_iterations,
     total_budget_ms: timeout_ms * max_iterations,
   };
-}
-
-/**
- * NodeCategory と置換モードの対応。
- *
- * 大は小を兼ねない (Statement を identifier wildcard で置換すると AST 型不整合で
- * round-trip 失敗) ので、カテゴリごとに意味のあるモードだけを選ぶ。カテゴリ自体の
- * 定義は constants.ts 側の NODE_CATEGORY に集約。
- */
-const MODE_BY_CATEGORY: Record<NodeCategory, ReplacementMode> = {
-  statement: "deleteStatement",
-  identifier: "wildcardIdentifier",
-  expression: "wildcardExpression",
-};
-
-function modesForNode(node: Node): ReplacementMode[] {
-  const category = NODE_CATEGORY.get(node.type);
-  if (category === undefined) return [];
-  return [MODE_BY_CATEGORY[category]];
-}
-
-function placeholderKindForMode(mode: ReplacementMode): PlaceholderKind {
-  switch (mode) {
-    case "deleteStatement":
-      return PLACEHOLDER_KIND.STATEMENT;
-    case "wildcardIdentifier":
-      return PLACEHOLDER_KIND.IDENTIFIER;
-    case "wildcardExpression":
-      return PLACEHOLDER_KIND.EXPRESSION;
-  }
-}
-
-/**
- * 候補ノードの元スニペットを再構成する。start/end が取れれば元コードから切り出し、
- * 取れなければ generate で近似。第 2 段階で参照するのは「何を置換したか」の情報。
- */
-function snippetOfNode(node: Node, sourceCode: string): string {
-  const start = node.start;
-  const end = node.end;
-  if (typeof start === "number" && typeof end === "number" && end >= start) {
-    return sourceCode.slice(start, end);
-  }
-  const generator = (generateModule as unknown as { default?: typeof generateModule })
-    .default ?? generateModule;
-  try {
-    return generator(node).code;
-  } catch {
-    return "";
-  }
-}
-
-function generateCode(file: File): string {
-  const generator = (generateModule as unknown as { default?: typeof generateModule })
-    .default ?? generateModule;
-  return generator(file).code;
-}
-
-function countNodes(file: File): number {
-  let count = 0;
-  function walk(node: unknown): void {
-    if (node === null || node === undefined) return;
-    if (Array.isArray(node)) {
-      for (const n of node as unknown[]) walk(n);
-      return;
-    }
-    if (typeof node !== "object") return;
-    const obj = node as { type?: unknown };
-    if (typeof obj.type !== "string") return;
-    count += 1;
-    for (const [, v] of Object.entries(node as Record<string, unknown>)) {
-      if (v !== null && typeof v === "object") walk(v);
-    }
-  }
-  walk(file);
-  return count;
 }
 
 /**
@@ -221,7 +144,7 @@ export async function prune(input: PruningInput): Promise<PruningResult> {
       essentialNodes,
       placeholders,
       startedAt,
-      iterationsRef: { value: iterations },
+      iterations,
     });
 
     if (prunedInThisPass === null) break; // budget 切れ
@@ -232,7 +155,7 @@ export async function prune(input: PruningInput): Promise<PruningResult> {
     currentSlowCode = prunedInThisPass.nextCode;
   }
 
-  const patternCode = generateCode(slowAst);
+  const patternCode = generate(slowAst);
   const nodeCountAfter = countNodes(slowAst);
 
   return {
@@ -247,10 +170,6 @@ export async function prune(input: PruningInput): Promise<PruningResult> {
   };
 }
 
-interface IterationsRef {
-  value: number;
-}
-
 interface TryPruneInput {
   readonly candidates: CandidatePath[];
   readonly slowAst: File;
@@ -259,7 +178,7 @@ interface TryPruneInput {
   readonly essentialNodes: WeakSet<Node>;
   readonly placeholders: Placeholder[];
   readonly startedAt: number;
-  readonly iterationsRef: IterationsRef;
+  readonly iterations: number;
 }
 
 interface TryPruneResult {
@@ -274,60 +193,60 @@ interface TryPruneResult {
  * どの候補も成功しなければ `pruned=false`。budget 切れは null を返す。
  */
 async function tryPruneCandidates(args: TryPruneInput): Promise<TryPruneResult | null> {
-  const { candidates, slowAst, currentSlowCode, cfg, essentialNodes, placeholders, startedAt, iterationsRef } =
-    args;
+  const { candidates, slowAst, currentSlowCode, cfg, essentialNodes, placeholders, startedAt } = args;
+  let iterations = args.iterations;
 
   for (const candidate of candidates) {
-    if (iterationsRef.value >= cfg.max_iterations) return null;
+    if (iterations >= cfg.max_iterations) return null;
     if (Date.now() - startedAt >= cfg.total_budget_ms) return null;
 
-    const modes = modesForNode(candidate.node);
-    let pruned = false;
-    let nextAst: File = slowAst;
-    let nextCode = currentSlowCode;
-
-    for (const mode of modes) {
-      if (iterationsRef.value >= cfg.max_iterations) return null;
-      if (Date.now() - startedAt >= cfg.total_budget_ms) return null;
-
-      const placeholderId = `$P${placeholders.length}`;
-      const replaced = replaceNode({
-        file: slowAst,
-        parent: candidate.parent,
-        parentKey: candidate.parentKey,
-        ...(candidate.listIndex !== undefined ? { listIndex: candidate.listIndex } : {}),
-        mode,
-        placeholderId,
-      });
-      if (replaced === null) continue; // round-trip 失敗 → 次モード / 次候補
-
-      iterationsRef.value += 1;
-      const result = await checkEquivalence({
-        setup: cfg.setup,
-        slow: replaced.code,
-        fast: cfg.fastCode,
-        timeout_ms: cfg.timeout_ms,
-      });
-
-      if (result.verdict === VERDICT.EQUAL) {
-        placeholders.push({
-          id: placeholderId,
-          kind: placeholderKindForMode(mode),
-          original_snippet: snippetOfNode(candidate.node, currentSlowCode),
-        });
-        nextAst = replaced.file;
-        nextCode = replaced.code;
-        pruned = true;
-        break;
-      }
+    const handler = handlerForNode(candidate.node);
+    if (handler === null) {
+      // whitelist 外の型 (通常 enumerateCandidates で弾かれるが念のため)
+      essentialNodes.add(candidate.node);
+      continue;
     }
 
-    if (pruned) {
-      return { pruned: true, nextAst, nextCode, iterations: iterationsRef.value };
+    const placeholderId = `$P${placeholders.length}`;
+    const replaced = replaceNode({
+      file: slowAst,
+      parent: candidate.parent,
+      parentKey: candidate.parentKey,
+      ...(candidate.listIndex !== undefined ? { listIndex: candidate.listIndex } : {}),
+      mode: handler.mode,
+      placeholderId,
+    });
+    if (replaced === null) {
+      // round-trip 失敗 → 必須扱い
+      essentialNodes.add(candidate.node);
+      continue;
     }
-    // この候補はどのモードでも prune できなかった → 必須扱い
+
+    iterations += 1;
+    const result = await checkEquivalence({
+      setup: cfg.setup,
+      slow: replaced.code,
+      fast: cfg.fastCode,
+      timeout_ms: cfg.timeout_ms,
+    });
+
+    if (result.verdict === VERDICT.EQUAL) {
+      placeholders.push({
+        id: placeholderId,
+        kind: handler.placeholderKind,
+        original_snippet: snippetOfNode(candidate.node, currentSlowCode),
+      });
+      return {
+        pruned: true,
+        nextAst: replaced.file,
+        nextCode: replaced.code,
+        iterations,
+      };
+    }
+
+    // 等価でない (or error) → この候補は必須
     essentialNodes.add(candidate.node);
   }
 
-  return { pruned: false, nextAst: slowAst, nextCode: currentSlowCode, iterations: iterationsRef.value };
+  return { pruned: false, nextAst: slowAst, nextCode: currentSlowCode, iterations };
 }

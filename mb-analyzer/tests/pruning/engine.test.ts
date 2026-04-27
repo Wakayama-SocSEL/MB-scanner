@@ -5,6 +5,7 @@
  *   - initial_mismatch: 初回検証で slow ≢ fast なら pruning を回さない
  *   - error: parse 失敗コードで verdict=error
  *   - id エコーバック: 入力 id がそのまま結果に乗る
+ *   - PR-2 alias-driven whitelist (ADR-0006): 新規追加型が候補化される
  */
 import { describe, expect, it } from "vitest";
 
@@ -111,4 +112,49 @@ describe("prune — id エコーバック", () => {
     });
     expect(result.id).toBe("test-xyz");
   }, 20_000);
+});
+
+describe("prune — PR-2 alias-driven whitelist の recall (ADR-0006)", () => {
+  // ADR-0006 で whitelist が 24 → 58 型に拡大。PR-2 以前は候補化されなかった
+  // 制御構造 / 関数式 / try-catch 等を含むコードでも pruning が完走することを検証する。
+  // 厳密な「何が削れたか」は L4 (Hydra 実行) の挙動依存なので、最低限「候補化され
+  // iterations が回ること」を観測する。
+
+  it("WhileStatement を含むコードでも pruning が完走する", async () => {
+    // 条件 false で空回りするループを関数で包んだ無害なコード
+    const code = "function f() { while (false) {} } f();";
+    const result = await prune({
+      slow: code,
+      fast: code,
+      timeout_ms: 3000,
+      max_iterations: 100,
+    });
+    expect(result.verdict).toBe("pruned");
+    // 新型が候補化されると最低 1 回は L4 が回る
+    expect(result.iterations ?? 0).toBeGreaterThan(0);
+  }, 30_000);
+
+  it("ArrowFunctionExpression を含むコードでも pruning が完走する", async () => {
+    const code = "const f = (x) => x + 1; f(0);";
+    const result = await prune({
+      slow: code,
+      fast: code,
+      timeout_ms: 3000,
+      max_iterations: 100,
+    });
+    expect(result.verdict).toBe("pruned");
+    expect(result.iterations ?? 0).toBeGreaterThan(0);
+  }, 30_000);
+
+  it("TryStatement を含むコードでも pruning が完走する", async () => {
+    const code = "try { 42; } catch (e) { 0; }";
+    const result = await prune({
+      slow: code,
+      fast: code,
+      timeout_ms: 3000,
+      max_iterations: 100,
+    });
+    expect(result.verdict).toBe("pruned");
+    expect(result.iterations ?? 0).toBeGreaterThan(0);
+  }, 30_000);
 });

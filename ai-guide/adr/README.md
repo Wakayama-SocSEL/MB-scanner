@@ -69,3 +69,4 @@ export function collectSubtreeHashes(file: File): Set<string> { ... }
 | [0003](0003-bottom-up-mapping-deferred.md) | bottom-up mapping を第 2 段階以降に遅延 | accepted | `mb-analyzer/src/pruning/` |
 | [0004](0004-pruning-setup-single.md) | PruningInput.setup を単数 string にする | accepted | `mb-analyzer/src/shared/types.ts`, `mb_scanner/domain/entities/pruning.py` |
 | [0005](0005-grammar-derived-blacklist.md) | pruning 候補 blacklist を `@babel/types` の文法メタデータから自動導出する | accepted | `mb-analyzer/src/pruning/ast/grammar-blacklist.ts` |
+| [0006](0006-grammar-derived-whitelist.md) | pruning 候補 whitelist を `@babel/types` の文法 alias から自動導出する | accepted | `mb-analyzer/src/pruning/constants.ts` |

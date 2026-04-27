@@ -1,11 +1,11 @@
 /**
  * 対象: src/pruning/ast/parser.ts (Babel parse ラッパ)
- * 観点: 関数外 return / 空文字列 / syntax error / TS 構文 / 大きなコードで意図通りの挙動
+ * 観点: 関数外 return / 空文字列 / syntax error / 対象言語スコープが意図通りに効く
  * 判定事項:
  *   - 正常なスニペットは t.File を返し、program.body が取り出せる
  *   - 空文字列は空の body を持つ File として返る (エラーにしない)
  *   - 関数外 return / await / super も許容
- *   - TypeScript 構文 (型アノテーション) も parse できる
+ *   - 対象言語は ECMAScript core のみ (ADR-0006): TS / JSX / Flow は SyntaxError
  *   - syntax error は SyntaxError として伝播する
  */
 import { describe, expect, it } from "vitest";
@@ -35,14 +35,12 @@ describe("parse", () => {
     expect(file.program.body[0]?.type).toBe("ExpressionStatement");
   });
 
-  it("TypeScript の型アノテーションも parse できる", () => {
-    const file = parse("const x: number = 1;");
-    expect(file.program.body[0]?.type).toBe("VariableDeclaration");
+  it("TypeScript の型アノテーションは SyntaxError (ADR-0006: 対象は素 JS)", () => {
+    expect(() => parse("const x: number = 1;")).toThrow(SyntaxError);
   });
 
-  it("JSX も parse できる", () => {
-    const file = parse("const el = <div>hi</div>;");
-    expect(file.program.body[0]?.type).toBe("VariableDeclaration");
+  it("JSX も SyntaxError (ADR-0006: 対象は素 JS)", () => {
+    expect(() => parse("const el = <div>hi</div>;")).toThrow(SyntaxError);
   });
 
   it("syntax error は SyntaxError として投げる", () => {

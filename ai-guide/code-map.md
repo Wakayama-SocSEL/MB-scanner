@@ -23,9 +23,12 @@
   - [4 オラクルの責務分担](#4-オラクルの責務分担)
   - [オラクル間の排他ルールと `not_applicable` の意義](#オラクル間の排他ルールと-not_applicable-の意義)
 - [Pruning エンジン](#pruning-エンジン)
+  - [ファイル構成](#ファイル構成)
   - [データフロー](#データフロー)
+  - [試行回数 (iterations) と budget の関係](#試行回数-iterations-と-budget-の関係)
   - [候補ノード決定の 3 段フィルタ](#候補ノード決定の-3-段フィルタ)
   - [置換操作の粒度 (削除 vs ワイルドカード化)](#置換操作の粒度-削除-vs-ワイルドカード化)
+  - [必須ノード (essentialNodes) と再列挙](#必須ノード-essentialnodes-と再列挙)
   - [pruning の正確性 — 多層防御](#pruning-の正確性--多層防御)
   - [文法由来 blacklist の網羅性](#文法由来-blacklist-の網羅性)
 
@@ -183,29 +186,91 @@ if (slow.exception !== null || fast.exception !== null) {
 
 第 1 段階 (構造パターン導出) の本体。`(slow, fast, setup)` トリプルから **ワイルドカード付きの最小構造パターン** を出力する。実装は `mb-analyzer/src/pruning/` 配下。研究方針は [`current-research.md` §第 1 段階](current-research.md#第-1-段階-実行ベース-hydra-式-pruning) を参照。
 
+### ファイル構成
+
+```
+src/pruning/
+├── engine.ts          ← prune (公開) + tryPruneCandidates (1 パス試行)
+├── categories.ts      ← NodeCategory → mode + placeholderKind dispatch (HANDLERS)
+├── constants.ts       ← NODE_CATEGORY (whitelist 兼カテゴリ分類)
+├── index.ts           ← 公開 re-export
+└── ast/
+    ├── parser.ts      ← parse / generate / tryGenerateNode
+    ├── candidates.ts  ← enumerateCandidates (3 段フィルタ + size 降順)
+    ├── replace.ts     ← replaceNode (1 箇所書き換え + round-trip 検証)
+    ├── diff.ts        ← SubtreeDiff (fast 側との共通ノード判定)
+    ├── grammar-blacklist.ts ← getGrammarBlacklist (ADR-0005)
+    └── inspect.ts     ← countNodes / snippetOfNode (read-only AST 検査)
+```
+
+新しい placeholder kind を追加するときの drift 面は **`constants.ts:NODE_CATEGORY` (型 → カテゴリ) と `categories.ts:HANDLERS` (カテゴリ → mode + placeholderKind) の 2 ファイル**に集約してある。内部 `ReplacementMode` (実装視点) と公開 `PlaceholderKind` (consumer 視点) を別の型に保つのは、将来「同じ placeholderKind に複数 mode」が必要になった際の拡張余地のため。
+
 ### データフロー
+
+`prune` は **2 段ループ構造**:
+
+- **外側ループ (`prune`)**: AST が変わるたびに SubtreeDiff と候補リストを再計算する。1 パスで 1 ノードが prune できれば AST を更新して次パスへ。
+- **内側ループ (`tryPruneCandidates`)**: 現在の候補を size 降順で順に試し、**最初に成功した 1 候補で return**。残った候補は次パスで再列挙される。
 
 ```
 PruningInput (slow, fast, setup, timeout_ms, max_iterations)
        ↓
-    parse (slow & fast)                          ← ast/parser.ts
+    parse(slow) / parse(fast)                    ← ast/parser.ts
        ↓
-    checkEquivalence(setup, slow, fast)          ← 初回検証 (等価性検証器を直接呼ぶ)
+    Phase 1: 初回等価性検証
+    checkEquivalence(setup, slow, fast)
        ├─ not_equal → verdict = initial_mismatch で終了
        ├─ error     → verdict = error で終了
        └─ equal     ↓
-    SubtreeDiff(slow, fast)                      ← ast/diff.ts: fast 側の全サブツリー hash
+    countNodes(slow) → node_count_before          ← ast/inspect.ts
        ↓
-    loop (max_iterations / total_budget_ms まで):
-       enumerateCandidates(slow, diff)           ← ast/candidates.ts: 3 段フィルタ + size 降順
-       for 各候補 (先頭から):
-         replaceNode → generate → parse          ← ast/replace.ts: 1 箇所書き換え + round-trip
-         checkEquivalence(setup, slow', fast)    ← L4 validation
-         ├─ equal  → AST 更新 + placeholder 記録 → 次ループで再列挙
-         └─ その他 → 必須ノード扱い (WeakSet に記録)
+    Phase 2: 反復 pruning
+  ┌─ 外側ループ: iterations < max_iterations かつ wall-time 内 ───────────┐
+  │   SubtreeDiff(slow, fast)                    ← ast/diff.ts: 再計算    │
+  │   enumerateCandidates(slow, diff)            ← ast/candidates.ts      │
+  │      .filter(c => !essentialNodes.has(c))    ← 確定済み必須ノード除外 │
+  │   候補が空 → 終了                                                      │
+  │   ↓                                                                    │
+  │ ┌─ 内側ループ tryPruneCandidates: size 降順に試行 ─────────────────┐ │
+  │ │   handlerForNode(node) → mode + placeholderKind ← categories.ts  │ │
+  │ │     null (whitelist 外) → essential 化 → 次候補                  │ │
+  │ │   ↓                                                              │ │
+  │ │   replaceNode(...)                              ← ast/replace.ts │ │
+  │ │     null (round-trip 失敗) → essential 化 → 次候補               │ │
+  │ │   ↓                                                              │ │
+  │ │   iterations += 1 ← ここで初めて budget を消費                   │ │
+  │ │   checkEquivalence(setup, slow', fast)         ← L4 (Hydra 実行) │ │
+  │ │     equal     → placeholders.push + return パス成功             │ │
+  │ │     それ以外  → essential 化 → 次候補                            │ │
+  │ └────────────────────────────────────────────────────────────────────┘ │
+  │   パス成功 → slow を置換後 AST に差し替え → 外側ループ次反復             │
+  │   パス失敗 (どの候補も prune できない) → 終了                            │
+  └────────────────────────────────────────────────────────────────────────┘
        ↓
-    PruningResult (pattern_ast, pattern_code, placeholders, iterations)
+    generate(slow) → pattern_code
+    countNodes(slow) → node_count_after
+       ↓
+    PruningResult (verdict=pruned, pattern_ast, pattern_code,
+                   placeholders, iterations, node_count_before/after)
 ```
+
+### 試行回数 (iterations) と budget の関係
+
+`iterations` は **`checkEquivalence` (L4 = Hydra sandbox 実行) を呼んだ回数**を数える。安いフィルタ段階の skip (whitelist 外 / round-trip 失敗) は count しない。
+
+理由は budget 設計にある (`engine.ts:resolveBudget`):
+
+```ts
+total_budget_ms: timeout_ms * max_iterations
+```
+
+`timeout_ms` は 1 回の `checkEquivalence` の上限。`max_iterations` 倍が pruning 全体の wall-time 上限になる、という関係式。budget 制御に意味があるのは「Hydra を何回回したか」だけなので、cheap fail を数えても意味がない。
+
+設計上の含意:
+
+- 候補が大量にあっても、ほとんど L1〜L3 で弾かれるケースでは `iterations` は小さく、wall-time も消費しない
+- 逆に少数の候補でも全て L4 まで到達すると `max_iterations` を消費しきる
+- `PruningResult.iterations` の値は「**Hydra 試行コストの実消費量**」を表し、ablation study で第 1 段階のコスト分析に使える
 
 ### 候補ノード決定の 3 段フィルタ
 
@@ -213,25 +278,69 @@ PruningInput (slow, fast, setup, timeout_ms, max_iterations)
 
 | # | フィルタ | 目的 | 実装 |
 |---|---|---|---|
-| 1 | 型 whitelist | pruning 可能な AST 型 (Statement / Expression / Identifier の 3 分類) のみ残す | `pruning/constants.ts` の `NODE_CATEGORY` keys |
+| 1 | 型 whitelist | pruning 可能な AST 型 (Statement / Expression / Identifier の 3 分類) のみ残す。**`@babel/types` の Statement / Expression alias から自動導出** (ADR-0006) | `pruning/constants.ts` の `NODE_CATEGORY` keys |
 | 2 | 親子位置 blacklist | 親 field validator が置換後の型を受理しない位置を**文法由来で自動判定**し除外 (ADR-0005) | `pruning/ast/grammar-blacklist.ts` の `getGrammarBlacklist()` |
 | 3 | AST 差分フィルタ | fast に同型ノードが存在する「共通ノード」のみに絞る (差分ノードは必須扱いで保護) | `pruning/ast/diff.ts` の `SubtreeDiff.isCommon` |
 
-`NODE_CATEGORY` は「候補型の分類」と「置換モードの選択」の両方を単一の真実の源泉にするためにモジュール直下に置いている (`engine.ts` の `modesForNode` もここから派生)。新しい型を pruning 対象に加えるときは `constants.ts` の 1 エントリ更新で両者に反映される。
+候補は **`end - start` 降順 (大きいノード優先)** でソートして返す (`candidates.ts:nodeSize`)。size 降順で試す方が、成功時に一度に縮む量が大きく、外側ループ反復数が減るという経験則。
+
+#### whitelist のカバレッジ (ADR-0006)
+
+`NODE_CATEGORY` は `t.FLIPPED_ALIAS_KEYS.Statement` / `Expression` から alias-driven に構築され、3 群の機械的除外が適用される (構造的 no-op / アルゴリズム不変条件 / 時点規範的除外)。
+
+| | Babel alias 全体 | NODE_CATEGORY (現状) | カバー率 |
+|---|---|---|---|
+| Statement | 47 型 | **24 型** | 51% |
+| Identifier | 1 型 | 1 型 | 100% |
+| Expression | 52 型 (Identifier 含む) | **33 型** | 65% |
+| 合計 | 99 型 | **58 型** | **約 59%** |
+
+残り 41 型は parser plugin OFF (TS / JSX / Flow 由来) + experimental (TC39 stage < 4) + EmptyStatement で全て principle 化されている (詳細は ADR-0006)。
+
+#### 新しい型を pruning 対象に加えるとき
+
+dataset に新しい言語が含まれる場合は **paired-change** で対応する:
+
+1. `pruning/constants.ts:PARSER_PLUGINS` に対応 plugin を追加 (例: `["typescript"]`)
+2. (新カテゴリの場合のみ) `categories.ts:HANDLERS` に「カテゴリ → mode + placeholderKind」を追加
+
+L1 blacklist (ADR-0005) も alias-derived なので **plugin 追加に応じて自動で親子位置除外が効く** (再実装不要)。詳細は ADR-0006 §対象言語拡張で扱える dataset 例。
 
 ### 置換操作の粒度 (削除 vs ワイルドカード化)
 
-候補ノードの category で置換モードが 1:1 に決まる (`engine.ts` の `MODE_BY_CATEGORY`)。**「削除」と呼べる操作は statement カテゴリへの `EmptyStatement` 置換のみ** で、最小粒度は 1 Statement ノード。
+候補ノードのカテゴリで置換動作が 1:1 に決まる (`categories.ts:HANDLERS`)。**「削除」と呼べる操作は statement カテゴリへの `EmptyStatement` 置換のみ** で、最小粒度は 1 Statement ノード。
 
-| カテゴリ | 置換モード | 置換後 | 操作の意味 |
-|---|---|---|---|
-| statement | `deleteStatement` | `EmptyStatement` (`;`) | **削除** |
-| identifier | `wildcardIdentifier` | `$VAR` (Identifier) | ワイルドカード化 (任意の識別子) |
-| expression | `wildcardExpression` | `$Pn` (StringLiteral) | ワイルドカード化 (任意の式) |
+| カテゴリ | 置換モード | 置換後 | 公開 PlaceholderKind | 操作の意味 |
+|---|---|---|---|---|
+| statement | `deleteStatement` | `EmptyStatement` (`;`) | `STATEMENT` | **削除** (機構としては EmptyStatement への置換) |
+| identifier | `wildcardIdentifier` | `$VAR` (Identifier) | `IDENTIFIER` | ワイルドカード化 (任意の識別子) |
+| expression | `wildcardExpression` | `$Pn` (StringLiteral) | `EXPRESSION` | ワイルドカード化 (任意の式) |
 
-statement カテゴリは `IfStatement` / `ExpressionStatement` / `VariableDeclaration` / `BlockStatement` / `ReturnStatement` / `ThrowStatement` の 6 型 (`constants.ts:NODE_CATEGORY`)。Statement 未満の粒度 (式単独や宣言の一部) は「削除」できず、必ず wildcard 化される。
+statement カテゴリは `Statement` alias から `EmptyStatement` (置換ターゲット自身) を除いた **24 型** (`If` / `For*` / `While` / `Switch` / `Try` / `Function/ClassDeclaration` / `Import/Export*` / `Block` / `Return` / `Throw` / `Break` / `Continue` 等)。Statement 未満の粒度 (式単独や宣言の一部) は「削除」できず、必ず wildcard 化される。
 
 ただし `body: [s1, s2, s3]` のような Statement 配列では `replaceNode` の `listIndex` 指定で 1 要素だけ `EmptyStatement` 化できるので、**隣接 Statement を残したまま 1 個ずつ削除する** ことは可能 (`replace.ts:applyReplacement`)。
+
+### 必須ノード (essentialNodes) と再列挙
+
+外側ループは prune 成功のたびに `enumerateCandidates` を**再呼び出し**する (slow AST が変わったため、size 順や差分判定がやり直しになる)。同じノードを毎パス再試行しないよう、**「prune できないと判定済みのノード」を `essentialNodes: WeakSet<Node>` に蓄積**する。
+
+essential 化されるトリガは内側ループ `tryPruneCandidates` の以下 3 ケース:
+
+| トリガ | 原因層 | 備考 |
+|---|---|---|
+| `handlerForNode === null` | whitelist 段階 | 通常は enumerateCandidates で弾かれるが防御的に |
+| `replaceNode === null` | L1 漏れ + L2/L3 で発覚 | 文法的に不正な置換 (round-trip 失敗) |
+| `checkEquivalence !== EQUAL` | L4 | 意味論的に必須 (差異が出た / sandbox エラー) |
+
+WeakSet を使うのは「**置換で消えた古いノード参照を自動 GC させる**」ため。新しい AST のノード参照は essential 判定の対象外になり、自動的に意味のある集合だけが残る。
+
+外側ループの終了条件:
+
+1. **iterations 上限到達** または **wall-time budget 超過** → tryPruneCandidates が `null` を返して break
+2. **候補ゼロ** → `enumerateCandidates(...).filter(...).length === 0`
+3. **どの候補も prune できない** → tryPruneCandidates が `pruned: false` で return
+
+(2)(3) は「もう縮まない」状態なので clean に終了し、`verdict: pruned` で結果を返す。
 
 ### pruning の正確性 — 多層防御
 
