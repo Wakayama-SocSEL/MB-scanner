@@ -18,7 +18,7 @@ src/pruning/
     ├── parser.ts           ← parse / generate / tryGenerateNode (Babel ラッパ)
     ├── walk.ts             ← walkNodes / isNode (VISITOR_KEYS ベースの DFS 走査)
     ├── inspect.ts          ← countNodes / snippetOfNode (read-only AST 検査)
-    └── fast-subtree-set.ts ← FastSubtreeSet (top-down subtree hash で fast 所属判定)
+    └── subtrees.ts         ← FastSubtreeSet (top-down subtree hash で fast 所属判定)
 ```
 
 3 層の役割分担:
