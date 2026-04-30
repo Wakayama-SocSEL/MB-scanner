@@ -1,7 +1,7 @@
 import { emptyStatement, identifier, stringLiteral } from "@babel/types";
 import type { Node } from "@babel/types";
 
-import { PLACEHOLDER_KIND, type PlaceholderKind } from "../../shared/types";
+import { PLACEHOLDER_KIND, type PlaceholderKind } from "../../shared/pruning-contracts";
 
 import { NODE_CATEGORY, type NodeCategory } from "./whitelist";
 

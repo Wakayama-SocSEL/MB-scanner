@@ -1,13 +1,13 @@
 import type { File, Node } from "@babel/types";
 
 import { checkEquivalence } from "../equivalence-checker";
+import { VERDICT } from "../shared/equivalence-contracts";
 import {
   PRUNING_VERDICT,
-  VERDICT,
   type Placeholder,
   type PruningInput,
   type PruningResult,
-} from "../shared/types";
+} from "../shared/pruning-contracts";
 
 import { SubtreeDiff } from "./ast/diff";
 import { countNodes, snippetOfNode } from "./ast/inspect";

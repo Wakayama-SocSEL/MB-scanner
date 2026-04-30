@@ -11,7 +11,7 @@ import * as t from "@babel/types";
 import { describe, expect, it } from "vitest";
 
 import { replacementFor } from "../../../src/pruning/rules/replacement";
-import { PLACEHOLDER_KIND } from "../../../src/shared/types";
+import { PLACEHOLDER_KIND } from "../../../src/shared/pruning-contracts";
 
 describe("replacementFor — placeholderKind", () => {
   it("statement カテゴリ: STATEMENT", () => {

@@ -7,4 +7,4 @@ export type {
   OracleObservation,
   OracleVerdict,
   Verdict,
-} from "../shared/types";
+} from "../shared/equivalence-contracts";
