@@ -70,3 +70,4 @@ export function collectSubtreeHashes(file: File): Set<string> { ... }
 | [0004](0004-pruning-setup-single.md) | PruningInput.setup を単数 string にする | accepted | `mb-analyzer/src/shared/types.ts`, `mb_scanner/domain/entities/pruning.py` |
 | [0005](0005-grammar-derived-blacklist.md) | pruning 候補 blacklist を `@babel/types` の文法メタデータから自動導出する | accepted | `mb-analyzer/src/pruning/ast/grammar-blacklist.ts` |
 | [0006](0006-grammar-derived-whitelist.md) | pruning 候補 whitelist を `@babel/types` の文法 alias から自動導出する | accepted | `mb-analyzer/src/pruning/constants.ts` |
+| [0007](0007-in-source-testing-internal-helpers.md) | 内部ヘルパは in-source testing、公開 API は `tests/` ツリーで分離する | accepted | `mb-analyzer/` |
