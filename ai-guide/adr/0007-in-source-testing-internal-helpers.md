@@ -60,7 +60,7 @@ C は設定コストを払う代わりに、**「export 有無」で配置先が
 |---|---|---|
 | 公開 API (モジュールの `index.ts` から re-export される) | `tests/...test.ts` | `prune` / `enumerateCandidates` / `SubtreeDiff` 等 |
 | モジュール内共有ヘルパ (ファイルから export はあるが `index.ts` に乗らない) | 同一ファイル末尾の `if (import.meta.vitest)` ブロック | `walkNodes` / `isNode` (`ast/walk.ts`) 等 |
-| 単一ファイル内ヘルパ (export なし) | 同一ファイル末尾の `if (import.meta.vitest)` ブロック | `isCandidate` / `nodeSize` 等 |
+| 単一ファイル内ヘルパ (export なし) | 同一ファイル末尾の `if (import.meta.vitest)` ブロック | `isCandidate` (`pruning/candidates.ts`) 等 |
 
 判断ルールは **モジュールの `index.ts` (public barrel) に乗るかどうか** のみに依存させる。export 自体の有無では判断しない: モジュール内の他ファイルから使うために export しているが外部公開していないシンボル (= モジュール内共有ヘルパ) は in-source 配置で扱う。「ロジックの複雑度」「テスト規模」も判断軸に入れない (主観で揺れ、二重規範を生む)。
 

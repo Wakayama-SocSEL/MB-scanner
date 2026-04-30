@@ -20,6 +20,15 @@ export function countNodes(file: File): number {
 }
 
 /**
+ * `node.end - node.start` のソース上のサイズ (バイト数)。位置が未付与なら 0。
+ */
+export function nodeSize(node: Node): number {
+  const start = node.start ?? 0;
+  const end = node.end ?? 0;
+  return end - start;
+}
+
+/**
  * 候補ノードの元スニペットを再構成する。start/end が取れれば元コードから切り出し、
  * 取れなければ generate で近似。第 2 段階で参照するのは「何を置換したか」の情報。
  */

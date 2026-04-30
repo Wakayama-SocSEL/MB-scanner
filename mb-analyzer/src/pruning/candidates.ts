@@ -1,6 +1,7 @@
 import type { File, Node } from "@babel/types";
 
 import type { SubtreeDiff } from "./ast/diff";
+import { nodeSize } from "./ast/inspect";
 import { walkNodes } from "./ast/walk";
 import { getGrammarBlacklist, type ExcludeRule, type GrammarBlacklist } from "./rules/blacklist";
 import { NODE_CATEGORY } from "./rules/whitelist";
@@ -82,12 +83,6 @@ function isCandidate(
   if (diff !== undefined && !diff.isCommon(node)) return false;
 
   return true;
-}
-
-function nodeSize(node: Node): number {
-  const start = node.start ?? 0;
-  const end = node.end ?? 0;
-  return end - start;
 }
 
 // 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
