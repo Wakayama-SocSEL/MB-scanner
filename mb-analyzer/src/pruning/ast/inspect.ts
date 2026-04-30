@@ -1,7 +1,7 @@
-import { VISITOR_KEYS } from "@babel/types";
 import type { File, Node } from "@babel/types";
 
 import { tryGenerateNode } from "./parser";
+import { walkNodes } from "./walk";
 
 /**
  * AST 上のノード集計・元コード抽出など、副作用なしの read-only 検査ユーティリティ。
@@ -13,33 +13,10 @@ import { tryGenerateNode } from "./parser";
  */
 export function countNodes(file: File): number {
   let count = 0;
-  function walk(node: Node): void {
+  walkNodes(file, () => {
     count += 1;
-    const visitorKeys = VISITOR_KEYS[node.type] ?? [];
-    const record = node as unknown as Record<string, unknown>;
-    for (const key of visitorKeys) {
-      const child = record[key];
-      if (child === null || child === undefined) continue;
-      if (Array.isArray(child)) {
-        for (const c of child as unknown[]) {
-          if (isNode(c)) walk(c);
-        }
-      } else if (isNode(child)) {
-        walk(child);
-      }
-    }
-  }
-  walk(file);
+  });
   return count;
-}
-
-function isNode(value: unknown): value is Node {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    typeof (value as { type: unknown }).type === "string"
-  );
 }
 
 /**

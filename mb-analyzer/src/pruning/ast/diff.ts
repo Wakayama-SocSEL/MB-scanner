@@ -1,6 +1,8 @@
 import { VISITOR_KEYS } from "@babel/types";
 import type { File, Node } from "@babel/types";
 
+import { walkNodes } from "./walk";
+
 /**
  * slow のノードごとに「fast のどこかに同じノードがあるか」を判定する。
  *
@@ -41,15 +43,6 @@ const METADATA_KEYS: ReadonlySet<string> = new Set([
   "comments",
   "errors",
 ]);
-
-function isNode(value: unknown): value is Node {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    typeof value.type === "string"
-  );
-}
 
 // VISITOR_KEYS で辿れる子は Node / null / それらの配列のいずれか。
 type VisitorChild = Node | null | undefined | Array<Node | null | undefined>;
@@ -97,25 +90,7 @@ export function canonicalHash(node: Node): string {
  */
 function collectSubtreeHashes(file: File): Set<string> {
   const set = new Set<string>();
-
-  function walk(node: Node): void {
-    set.add(canonicalHash(node));
-    const visitorKeys = VISITOR_KEYS[node.type] ?? [];
-    const record = node as unknown as Record<string, unknown>;
-    for (const key of visitorKeys) {
-      const child = record[key];
-      if (child === null || child === undefined) continue;
-      if (Array.isArray(child)) {
-        for (const c of child) {
-          if (isNode(c)) walk(c);
-        }
-      } else if (isNode(child)) {
-        walk(child);
-      }
-    }
-  }
-
-  walk(file);
+  walkNodes(file, ({ node }) => set.add(canonicalHash(node)));
   return set;
 }
 

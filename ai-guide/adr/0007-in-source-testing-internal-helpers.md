@@ -1,4 +1,4 @@
-# ADR-0007: 内部ヘルパは in-source testing、公開 API は `tests/` ツリーで分離する
+# ADR-0007: 内部ヘルパとモジュール内共有ヘルパは in-source testing、公開 API は `tests/` ツリーで分離する
 
 - **Status**: accepted
 - **Date**: 2026-04-30
@@ -58,10 +58,11 @@ C は設定コストを払う代わりに、**「export 有無」で配置先が
 
 | 区分 | 配置 | 例 |
 |---|---|---|
-| 公開 API (export されたシンボル) | `tests/...test.ts` | 既存の `enumerateCandidates` テスト等 |
-| モジュール内部ヘルパ (export されないシンボル) | 同一ファイル末尾の `if (import.meta.vitest)` ブロック | `isCandidate` / `walkAst` 等 |
+| 公開 API (モジュールの `index.ts` から re-export される) | `tests/...test.ts` | `prune` / `enumerateCandidates` / `SubtreeDiff` 等 |
+| モジュール内共有ヘルパ (ファイルから export はあるが `index.ts` に乗らない) | 同一ファイル末尾の `if (import.meta.vitest)` ブロック | `walkNodes` / `isNode` (`ast/walk.ts`) 等 |
+| 単一ファイル内ヘルパ (export なし) | 同一ファイル末尾の `if (import.meta.vitest)` ブロック | `isCandidate` / `nodeSize` 等 |
 
-判断ルールは **export の有無** のみに依存させる。「ロジックの複雑度」「テスト規模」を判断軸に入れない (主観で揺れ、二重規範を生む)。
+判断ルールは **モジュールの `index.ts` (public barrel) に乗るかどうか** のみに依存させる。export 自体の有無では判断しない: モジュール内の他ファイルから使うために export しているが外部公開していないシンボル (= モジュール内共有ヘルパ) は in-source 配置で扱う。「ロジックの複雑度」「テスト規模」も判断軸に入れない (主観で揺れ、二重規範を生む)。
 
 ### in-source test ブロックの書式
 
@@ -93,7 +94,7 @@ if (import.meta.vitest) {
 
 - 内部ヘルパの audit trail が実装と collocation され、論文執筆時に「考慮した境界」が即座に参照可能
 - 公開 API 表面が増えない (テスト都合の export 圧力を排除)
-- 規約 (export 有無) で配置が機械的に決まり、レビュー時の「これ tests/ に出すべき?」議論が不要
+- 規約 (`index.ts` に乗るか) で配置が機械的に決まり、レビュー時の「これ tests/ に出すべき?」議論が不要
 - `tests/` ツリーは「外部仕様 = 公開 API の振る舞い」を表すドキュメントとして純度が上がる
 
 **諦めるもの・将来のコスト:**
