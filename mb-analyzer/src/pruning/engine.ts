@@ -33,33 +33,6 @@ import { replacementFor } from "./rules/replacement";
  * 単一 setup 設計の採用判断は ai-guide/adr/0004-pruning-setup-single.md 参照。
  */
 
-interface ResolvedConfig {
-  readonly setup: string;
-  readonly fastCode: string;
-  readonly timeout_ms: number;
-  readonly max_iterations: number;
-  readonly total_budget_ms: number;
-}
-
-const DEFAULT_TIMEOUT_MS = 5_000;
-const DEFAULT_MAX_ITERATIONS = 1_000;
-
-/**
- * 1 回の checkEquivalence 呼び出しを最大 timeout_ms 使う前提で、
- * max_iterations 分の予算と等しいだけの wall-time を確保する。
- */
-function resolveBudget(input: PruningInput): ResolvedConfig {
-  const timeout_ms = input.timeout_ms ?? DEFAULT_TIMEOUT_MS;
-  const max_iterations = input.max_iterations ?? DEFAULT_MAX_ITERATIONS;
-  return {
-    setup: input.setup ?? "",
-    fastCode: input.fast,
-    timeout_ms,
-    max_iterations,
-    total_budget_ms: timeout_ms * max_iterations,
-  };
-}
-
 /**
  * `prune` の本体。失敗時は verdict=error を返し例外は呼び出し側へ投げない。
  */
@@ -159,6 +132,33 @@ export async function prune(input: PruningInput): Promise<PruningResult> {
   };
 }
 
+interface ResolvedConfig {
+  readonly setup: string;
+  readonly fastCode: string;
+  readonly timeout_ms: number;
+  readonly max_iterations: number;
+  readonly total_budget_ms: number;
+}
+
+const DEFAULT_TIMEOUT_MS = 5_000;
+const DEFAULT_MAX_ITERATIONS = 1_000;
+
+/**
+ * 1 回の checkEquivalence 呼び出しを最大 timeout_ms 使う前提で、
+ * max_iterations 分の予算と等しいだけの wall-time を確保する。
+ */
+function resolveBudget(input: PruningInput): ResolvedConfig {
+  const timeout_ms = input.timeout_ms ?? DEFAULT_TIMEOUT_MS;
+  const max_iterations = input.max_iterations ?? DEFAULT_MAX_ITERATIONS;
+  return {
+    setup: input.setup ?? "",
+    fastCode: input.fast,
+    timeout_ms,
+    max_iterations,
+    total_budget_ms: timeout_ms * max_iterations,
+  };
+}
+
 interface TryPruneInput {
   readonly candidates: CandidatePath[];
   readonly slowAst: File;
@@ -201,9 +201,7 @@ async function tryPruneCandidates(args: TryPruneInput): Promise<TryPruneResult> 
 
     const placeholderId = `$P${placeholders.length}`;
     const saved = readAt(candidate.parent, candidate.parentKey, candidate.listIndex);
-    if (!applyAt(candidate.parent, candidate.parentKey, candidate.listIndex, replacement.buildNode(placeholderId))) {
-      continue;
-    }
+    writeAt(candidate.parent, candidate.parentKey, candidate.listIndex, replacement.buildNode(placeholderId));
 
     let succeeded = false;
     try {
@@ -239,7 +237,7 @@ async function tryPruneCandidates(args: TryPruneInput): Promise<TryPruneResult> 
         iterations,
       };
     } finally {
-      if (!succeeded) applyAt(candidate.parent, candidate.parentKey, candidate.listIndex, saved);
+      if (!succeeded) writeAt(candidate.parent, candidate.parentKey, candidate.listIndex, saved);
     }
   }
 
@@ -253,20 +251,85 @@ function readAt(parent: Node, parentKey: string, listIndex: number | undefined):
   return Array.isArray(arr) ? (arr as unknown[])[listIndex] : undefined;
 }
 
-function applyAt(
+/**
+ * `parent[parentKey]` (listIndex 指定時は配列要素) に値を代入する。
+ * `enumerateCandidates` (`walkNodes` 経由) の不変条件を信頼し、配列でない / 範囲外の
+ * 不正位置は内部 bug として例外で fail-fast する。
+ */
+function writeAt(
   parent: Node,
   parentKey: string,
   listIndex: number | undefined,
   value: unknown,
-): boolean {
+): void {
   const record = parent as unknown as Record<string, unknown>;
   if (listIndex === undefined) {
     record[parentKey] = value;
-    return true;
+    return;
   }
   const arr = record[parentKey];
-  if (!Array.isArray(arr)) return false;
-  if (listIndex < 0 || listIndex >= arr.length) return false;
+  if (!Array.isArray(arr) || listIndex < 0 || listIndex >= arr.length) {
+    throw new Error(`writeAt: invalid position ${parent.type}.${parentKey}[${listIndex}]`);
+  }
   (arr as unknown[])[listIndex] = value;
-  return true;
+}
+
+// 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
+if (import.meta.vitest) {
+  const { describe, it, expect } = import.meta.vitest;
+
+  describe("resolveBudget (in-source)", () => {
+    it("timeout_ms / max_iterations のデフォルトは 5_000 / 1_000、total_budget_ms はその積", () => {
+      const cfg = resolveBudget({ slow: "", fast: "" });
+      expect(cfg.timeout_ms).toBe(5_000);
+      expect(cfg.max_iterations).toBe(1_000);
+      expect(cfg.total_budget_ms).toBe(5_000_000);
+    });
+
+    it("入力で渡された値はデフォルトを上書きする", () => {
+      const cfg = resolveBudget({ slow: "", fast: "", timeout_ms: 100, max_iterations: 7 });
+      expect(cfg.timeout_ms).toBe(100);
+      expect(cfg.max_iterations).toBe(7);
+      expect(cfg.total_budget_ms).toBe(700);
+    });
+
+    it("setup 未指定は空文字、fast はそのまま fastCode に渡る", () => {
+      const cfg = resolveBudget({ slow: "a", fast: "b" });
+      expect(cfg.setup).toBe("");
+      expect(cfg.fastCode).toBe("b");
+    });
+  });
+
+  describe("readAt / writeAt (in-source)", () => {
+    it("単一子: listIndex=undefined で read/write が round-trip する", () => {
+      const parent = { type: "ExpressionStatement", expression: { type: "Identifier", name: "a" } } as unknown as Node;
+      const saved = readAt(parent, "expression", undefined);
+      writeAt(parent, "expression", undefined, { type: "NumericLiteral", value: 0 });
+      expect((parent as unknown as { expression: { type: string } }).expression.type).toBe("NumericLiteral");
+      writeAt(parent, "expression", undefined, saved);
+      expect((parent as unknown as { expression: { type: string } }).expression.type).toBe("Identifier");
+    });
+
+    it("配列子: listIndex 指定で特定要素だけ書き換わる", () => {
+      const a = { type: "Identifier", name: "a" };
+      const b = { type: "Identifier", name: "b" };
+      const c = { type: "Identifier", name: "c" };
+      const parent = { type: "BlockStatement", body: [a, b, c] } as unknown as Node;
+      writeAt(parent, "body", 1, { type: "EmptyStatement" });
+      const body = (parent as unknown as { body: Array<{ type: string }> }).body;
+      expect(body[0]?.type).toBe("Identifier");
+      expect(body[1]?.type).toBe("EmptyStatement");
+      expect(body[2]?.type).toBe("Identifier");
+    });
+
+    it("writeAt: 配列でない位置に listIndex を渡すと例外", () => {
+      const parent = { type: "ExpressionStatement", expression: { type: "Identifier" } } as unknown as Node;
+      expect(() => writeAt(parent, "expression", 0, { type: "NumericLiteral", value: 0 })).toThrow(/invalid position/);
+    });
+
+    it("writeAt: 配列の範囲外 index を渡すと例外", () => {
+      const parent = { type: "BlockStatement", body: [{ type: "Identifier" }] } as unknown as Node;
+      expect(() => writeAt(parent, "body", 5, { type: "EmptyStatement" })).toThrow(/invalid position/);
+    });
+  });
 }
