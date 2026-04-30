@@ -222,6 +222,7 @@ for ($DECL $ITER in $TARGET) {
 **Unsoundness の緩和**:
 - 第 1 段階の AST 差分フィルタで「fast に対応物がない差分ノード」を必須として保護 (単一セットアップでの誤 prune を構造的に回避)
 - 共通ノードに潜む edge case (差分フィルタで救えないケース) は第 3 段階 C1〜C4 同値分割テストで代表値網羅性を確保する二段構造
+- pruning 候補の静的除外は **`@babel/types` の文法メタデータから自動導出する効率最適化** (ADR-0005) であり、正確性は Babel 型検査 / round-trip parse / 等価性検証器による多層防御で担保する (実装詳細は [`code-map.md` §Pruning エンジン](code-map.md#pruning-エンジン))
 
 ---
 

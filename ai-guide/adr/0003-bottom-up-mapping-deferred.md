@@ -59,7 +59,7 @@ Selakovic データセットの性質:
 - Selakovic 10 パターン integration テスト (PR #4) で top-down だけでは取りこぼすケースが出た
 - OSS 適用フェーズで偽陰性率が許容できないレベルと判明
 
-実装時は `SubtreeDiff` クラスに `mapTo(node: t.Node): t.Node | null` を追加する前提で API 互換を保つ。
+実装時は `FastSubtreeSet` クラスに `mapTo(node: t.Node): t.Node | null` を追加する前提で API 互換を保つ。
 
 ## 補足
 

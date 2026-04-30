@@ -44,7 +44,8 @@ cli/               ──→ 全機能 (composition root)
 mb-analyzer/                  # === TypeScript CLI (現行実装) ===
 ├── src/
 │   ├── shared/               # 末端層: 型定義のみ（他機能を import 禁止）
-│   │   └── types.ts          # Python 側 Pydantic と JSON 互換な EquivalenceInput / Result
+│   │   ├── equivalence-contracts.ts # Python `equivalence.py` と JSON 互換 (VERDICT / Oracle / EquivalenceInput / Result)
+│   │   └── pruning-contracts.ts     # Python `pruning.py` と JSON 互換 (PRUNING_VERDICT / PlaceholderKind / PruningInput / Result)
 │   ├── equivalence-checker/  # 等価性検証器（pruning/ 等を import 禁止）
 │   │   ├── checker.ts        # checkEquivalence() 本体
 │   │   ├── verdict.ts        # 全体 verdict 判定ロジック (deriveOverallVerdict)
@@ -145,7 +146,7 @@ mb-analyzer-legacy/           # [DEPRECATED] 旧 pnpm workspace monorepo
 - **`any` 型禁止**: `@typescript-eslint/no-explicit-any` で制約
 - **`unknown` → 型ガード** で段階的に narrow する
 - **`noUncheckedIndexedAccess: true`**: 配列/マップの要素アクセスは `T | undefined` として扱う
-- **外部入力 (stdin JSON) のパース**: `unknown` として受け取り、手書きの型ガードで `EquivalenceInput` に narrow する (`shared/types.ts` の Pydantic 互換型に変換)
+- **外部入力 (stdin JSON) のパース**: `unknown` として受け取り、手書きの型ガードで `EquivalenceInput` に narrow する (`shared/equivalence-contracts.ts` の Pydantic 互換型に変換)
 - **ESM インポートは相対パス + 拡張子なし** (`import { foo } from "./bar"` 形式)
 - **`import type` の強制**: `@typescript-eslint/consistent-type-imports` で型専用 import を使い分ける
 

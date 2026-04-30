@@ -1,6 +1,10 @@
 import { defineConfig } from "vitest/config";
 
+// 判断: ../ai-guide/adr/0007-in-source-testing-internal-helpers.md
 export default defineConfig({
+  define: {
+    "import.meta.vitest": "undefined",
+  },
   test: {
     passWithNoTests: true,
     projects: [
@@ -8,6 +12,7 @@ export default defineConfig({
         test: {
           name: "unit",
           include: ["tests/{cli,equivalence-checker,pruning,shared}/**/*.test.ts"],
+          includeSource: ["src/**/*.ts"],
           environment: "node",
         },
       },

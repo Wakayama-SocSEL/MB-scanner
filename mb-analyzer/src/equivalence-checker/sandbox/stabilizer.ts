@@ -1,7 +1,7 @@
 import vm from "node:vm";
 
-export const FROZEN_EPOCH_MS = 0;
-export const PRNG_SEED = 0x42424242;
+const FROZEN_EPOCH_MS = 0;
+const PRNG_SEED = 0x42424242;
 
 export type ConsoleMethod = "log" | "error" | "warn" | "info" | "debug";
 

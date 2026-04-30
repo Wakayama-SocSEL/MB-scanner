@@ -1,17 +1,6 @@
 # アーキテクチャ・設計ガイド
 
-## ai-guide 4 軸の住み分け
-
-`ai-guide/` は用途別に 4 軸で構成されています。書きたい内容の語尾で振り分け、重複を避けてください:
-
-| 文書 | 性質 | 文体 | 想定読者 |
-|---|---|---|---|
-| **`architecture/`** (本文書) | **Contract** — 〜すべき / 〜禁止 / 〜と一致 | 表・条件文 | `check-architecture` skill, レビュー時の自分 |
-| [`quality-check/`](../quality-check/index.md) | **Process** — 〜を確認する / 〜で検証する | 手順書 | `check-tests` skill, QA |
-| [`code-map.md`](../code-map.md) | **Reference** — 〜する仕組み / 〜のため〜 | 物語・図・データフロー | 論文執筆、onboarding |
-| [`adr/`](../adr/README.md) | **Decisions** — 〜を採用し、〜を却下した | Context / 選択肢 / 決定 / トリガー | 設計判断を見直す人、履歴を追いたい人 |
-
-**drift 防止**: 意味論的な詳細（オラクル責務・観測軸・verdict 合成など）は `code-map.md` に集約し、本文書からはリンクのみを置く。**矛盾時は architecture/ を正とする**（契約が優先）。ADR は採用判断の根拠を残すだけで、現行契約は必ず `architecture/` 側に反映する。
+ドキュメント配置の規約 (4 軸の住み分け、コメント層分離、in-tree README) は [`doc-strategy/index.md`](../doc-strategy/index.md) に集約。本文書は **Contract — TS / Python 双方の依存方向ルール、契約、共通コーディング規約** を扱う。
 
 ---
 
@@ -48,31 +37,6 @@ MB-Scanner は、GitHub 上の多数の JavaScript リポジトリに対して C
 
 ---
 
-## コメントとドキュメントの層分離
-
-コードとドキュメントに残す情報は「読み手が何をしたいか」で層を分けます。
-
-| 読み手の目的 | 置き場所 |
-|---|---|
-| 関数を **使う** (契約・挙動を知る) | JSDoc (TS) / docstring (Python) |
-| **自明でない局所的な工夫** を理解する | ソース内 `//` / `#` コメント |
-| 採用判断を **変える** (却下した選択肢を見直す) | [`adr/`](../adr/README.md) |
-| 日付軸のマイルストーン | `TODO.md` |
-
-**判定基準**: 「読み手は *使う* 人か、*変える* 人か」。使う人向けなら JSDoc / docstring、変える人向けなら ADR。
-
-### 具体原則
-
-- **JSDoc / docstring は契約のみ**: 不変条件・前提・失敗条件を書く。採用理由や却下した選択肢は書かない (それは ADR の仕事)
-- **`//` / `#` は自明でない時だけ**: 関数名とシグネチャから読み取れる内容は書かない
-- **section divider コメント** (例: `// --- 内部ヘルパ ---`) は原則避ける。export 境界や関数分割で区切りは自明
-- **ADR への参照**: `// 判断: ai-guide/adr/NNNN-xxx.md` 形式で 1 行。理由や却下案は ADR 側に
-- **言葉使い**: 具体的に (「ms オーダで重い」のような未計測の誇張は避ける、計測値がなければ定性的に書く)
-
-言語固有の書き方は [`mb-scanner.md`](mb-scanner.md) / [`mb-analyzer.md`](mb-analyzer.md) を参照。
-
----
-
 ## Python ↔ Node の JSON 契約
 
 両コードベースをまたぐ通信は `subprocess` の stdin/stdout に載せた JSON/JSONL で行います。契約破りは静的解析で検出できないため、以下の規約を厳守します。
@@ -103,6 +67,27 @@ MB-Scanner は、GitHub 上の多数の JavaScript リポジトリに対して C
 
 - Python → Node へ送る際は `model_dump_json(exclude_defaults=False, exclude_none=False)` を明示
 - 将来のリファクタで timeout_ms などがシリアライズから落ちる事故を防ぐ
+
+---
+
+## 共通コーディング規約 (両側)
+
+機械強制できないが両コードベースで揃えたい規約をここに集約します。判定基準は **両言語に同じ意図で適用したいスタイルで、機械強制できないもの**。言語固有の具体化は [`mb-scanner.md`](mb-scanner.md) / [`mb-analyzer.md`](mb-analyzer.md) の「コーディング規約」節へ。
+
+### ファイル内の宣言順序: bottom-up
+
+データ宣言ファイル / モジュールは bottom-up で並べます:
+
+1. 公開型 (`export type` / `class` / Pydantic Model)
+2. private helper (補助定数 / 内部 function)
+3. builder / factory function
+4. ★ exported const = ファイルの contract
+
+理由: ファイル末尾の「結論」を読む時点で依存部品が出揃っている状態にすることで、読み手が前方参照のために戻る必要がなくなる。Python は def hoisting が無いため物理的にこの順序が必須となるケースが多い。TypeScript は `function` 宣言の hoisting で `export const X = build()` を上に置けるが、本規約では bottom-up に揃える。
+
+代表例:
+- TS: `mb-analyzer/src/pruning/rules/whitelist.ts`, `blacklist.ts`
+- Python: `mb_scanner/domain/entities/*.py`
 
 ---
 

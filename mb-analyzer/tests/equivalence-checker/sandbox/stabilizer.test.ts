@@ -11,7 +11,10 @@
  */
 import { describe, expect, it } from "vitest";
 import vm from "node:vm";
-import { createStabilizedContext, FROZEN_EPOCH_MS } from "../../../src/equivalence-checker/sandbox/stabilizer";
+import { createStabilizedContext } from "../../../src/equivalence-checker/sandbox/stabilizer";
+
+// stabilizer.ts の内部定数と独立に保持。実装値が変わったら本値も追従。
+const FROZEN_EPOCH_MS = 0;
 
 describe("createStabilizedContext", () => {
   it("Math.random が同一シードで決定的な値列を返す", () => {
