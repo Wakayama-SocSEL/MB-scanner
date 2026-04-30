@@ -18,7 +18,7 @@ src/pruning/
     ├── parser.ts           ← parse / generate / tryGenerateNode (Babel ラッパ)
     ├── walk.ts             ← walkNodes / isNode (VISITOR_KEYS ベースの DFS 走査)
     ├── inspect.ts          ← countNodes / snippetOfNode (read-only AST 検査)
-    └── diff.ts             ← SubtreeDiff (top-down subtree hash で fast 共通ノード判定)
+    └── fast-subtree-set.ts ← FastSubtreeSet (top-down subtree hash で fast 所属判定)
 ```
 
 3 層の役割分担:
@@ -27,7 +27,7 @@ src/pruning/
 |---|---|---|---|
 | ルート (engine, candidates) | アルゴリズム本体 | あり | このプロジェクト固有 |
 | `rules/` | 宣言データのみ (whitelist / blacklist / replacement) | あり | データ差し替え可能 |
-| `ast/` | parser / walk / inspect / diff (Babel AST toolbox) | なし | 別プロジェクトに切り出し可能 |
+| `ast/` | parser / walk / inspect / subtrees (Babel AST toolbox) | なし | 別プロジェクトに切り出し可能 |
 
 ## 依存方向
 
@@ -35,7 +35,7 @@ src/pruning/
 engine.ts
  ├─ candidates.ts ──┬─ rules/whitelist.ts
  │                  ├─ rules/blacklist.ts ── rules/whitelist.ts
- │                  ├─ ast/diff.ts ── ast/walk.ts
+ │                  ├─ ast/subtrees.ts ── ast/walk.ts
  │                  └─ ast/walk.ts
  ├─ rules/replacement.ts ── rules/whitelist.ts
  ├─ ast/parser.ts ── rules/whitelist.ts (PARSER_PLUGINS)
@@ -48,7 +48,7 @@ engine.ts
 ## 関連 ADR
 
 - [ADR-0001](../../../ai-guide/adr/0001-pruning-ast-traversal.md): AST 走査に `VISITOR_KEYS` 再帰を採用 (`ast/walk.ts`)
-- [ADR-0002](../../../ai-guide/adr/0002-babel-topdown-subtree-hash.md): AST 差分判定に Babel + top-down subtree hash を自作 (`ast/diff.ts`)
+- [ADR-0002](../../../ai-guide/adr/0002-babel-topdown-subtree-hash.md): AST 差分判定に Babel + top-down subtree hash を自作 (`ast/subtrees.ts`)
 - [ADR-0003](../../../ai-guide/adr/0003-bottom-up-mapping-deferred.md): bottom-up mapping を第 2 段階以降に遅延
 - [ADR-0004](../../../ai-guide/adr/0004-pruning-setup-single.md): `PruningInput.setup` を単数 string にする
 - [ADR-0005](../../../ai-guide/adr/0005-grammar-derived-blacklist.md): 候補位置 blacklist を文法メタから自動導出 (`rules/blacklist.ts`)

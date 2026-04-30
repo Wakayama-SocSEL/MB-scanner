@@ -9,7 +9,7 @@ import {
   type PruningResult,
 } from "../shared/pruning-contracts";
 
-import { SubtreeDiff } from "./ast/diff";
+import { FastSubtreeSet } from "./ast/subtrees";
 import { countNodes, snippetOfNode } from "./ast/inspect";
 import { generate, parse } from "./ast/parser";
 import { enumerateCandidates, type CandidatePath } from "./candidates";
@@ -22,7 +22,7 @@ import { replacementFor } from "./rules/replacement";
  *
  *   1. 初回等価性検証: slow ≡ fast が `setup` 上で成立しなければ `initial_mismatch`
  *      (pruning 前提が崩れているので即 return)
- *   2. AST 差分フィルタ: SubtreeDiff で fast に同型が存在する「共通ノード」のみを
+ *   2. AST 差分フィルタ: FastSubtreeSet で fast に同型が存在する「共通ノード」のみを
  *      候補として列挙。差分ノードは「fast に対応物がない = パターンの本質」として
  *      必須扱い (試行しない)
  *   3. 候補を大きい順に DFS 走査: 1 候補ごとに親キーを mutate → 等価判定 → 等価なら
@@ -86,14 +86,14 @@ export async function prune(input: PruningInput): Promise<PruningResult> {
   }
 
   // Phase 2: AST 差分フィルタ + 候補列挙 + DFS 走査
-  // 1 回 prune に成功したら slowAst が変わるので候補を再列挙する。SubtreeDiff は
+  // 1 回 prune に成功したら slowAst が変わるので候補を再列挙する。FastSubtreeSet は
   // fast 側の hash 集合だけを保持し fast は不変なので、ループ外で 1 回だけ構築する。
   // 失敗候補のクロスパス dedup は将来の最適化として保留 (canonical hash ベースで
   // 実装する余地あり)。
   const placeholders: Placeholder[] = [];
   let iterations = 0;
   const startedAt = Date.now();
-  const diff = new SubtreeDiff(fastAst);
+  const diff = new FastSubtreeSet(fastAst);
 
   while (iterations < cfg.max_iterations) {
     if (Date.now() - startedAt >= cfg.total_budget_ms) break;

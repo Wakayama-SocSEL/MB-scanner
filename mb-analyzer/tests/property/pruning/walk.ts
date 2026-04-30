@@ -3,9 +3,9 @@ import type { Node } from "@babel/types";
 
 /**
  * File 全体のサブツリーを走査しすべてのノードを yield する generator。
- * property テスト用ヘルパ (本番コードでは diff.ts 内部の walk で済ませる)。
+ * property テスト用ヘルパ (本番コードでは fast-subtree-set.ts 内部の walk で済ませる)。
  *
- * 同ファイル内の isNode は diff.ts の同名 private ヘルパと意図的に重複させている
+ * 同ファイル内の isNode は ast/walk.ts の同名 helper と意図的に重複させている
  * (tests から src の内部実装に依存しない方針)。
  */
 export function* walkAllNodes(root: Node): Generator<Node> {

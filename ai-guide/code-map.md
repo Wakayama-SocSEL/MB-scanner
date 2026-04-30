@@ -183,7 +183,7 @@ if (slow.exception !== null || fast.exception !== null) {
 | 領域 | 責務 |
 |---|---|
 | `engine.ts` | 公開 `prune` + 1 パス試行 `tryPruneCandidates`。Hydra 反復ループの本体 + mutate / revert (savepoint パターン) |
-| `candidates.ts` | AST 走査 + ルール適用で候補列挙 (whitelist / blacklist / SubtreeDiff の 3 段フィルタ) |
+| `candidates.ts` | AST 走査 + ルール適用で候補列挙 (whitelist / blacklist / FastSubtreeSet の 3 段フィルタ) |
 | `rules/` | pruning の対象と戦略の宣言データ集 (whitelist / blacklist / replacement) |
 | `ast/*` | Babel AST 汎用 toolbox (parser / inspect / diff)。pruning 固有の知識を持たない |
 
@@ -195,7 +195,7 @@ if (slow.exception !== null || fast.exception !== null) {
 
 `prune` は **2 段ループ構造**:
 
-- **外側ループ (`prune`)**: AST が変わるたびに SubtreeDiff と候補リストを再計算する。1 パスで 1 ノードが prune できれば AST を更新して次パスへ。
+- **外側ループ (`prune`)**: AST が変わるたびに FastSubtreeSet と候補リストを再計算する。1 パスで 1 ノードが prune できれば AST を更新して次パスへ。
 - **内側ループ (`tryPruneCandidates`)**: 現在の候補を size 降順で順に試し、**最初に成功した 1 候補で return**。残った候補は次パスで再列挙される。
 
 ```
@@ -212,7 +212,7 @@ PruningInput (slow, fast, setup, timeout_ms, max_iterations)
        ↓
     Phase 2: 反復 pruning
   ┌─ 外側ループ: iterations < max_iterations かつ wall-time 内 ───────────┐
-  │   SubtreeDiff(slow, fast)                    ← ast/diff.ts: 再計算    │
+  │   FastSubtreeSet(fast)                    ← ast/subtrees.ts: 再計算    │
   │   enumerateCandidates(slow, diff)            ← candidates.ts          │
   │   候補が空 → 終了                                                      │
   │   ↓                                                                    │
@@ -271,7 +271,7 @@ total_budget_ms: timeout_ms * max_iterations
 |---|---|---|---|
 | 1 | 型 whitelist | pruning 可能な AST 型 (Statement / Expression / Identifier の 3 分類) のみ残す。**`@babel/types` の Statement / Expression alias から自動導出** (ADR-0006) | `pruning/rules/whitelist.ts` の `WHITELIST_CATEGORIES` keys |
 | 2 | 親子位置 blacklist | 親 field validator が置換後の型を受理しない位置を**文法由来で自動判定**し除外 (ADR-0005) | `pruning/rules/blacklist.ts` の `BLACKLIST_CATEGORIES` |
-| 3 | AST 差分フィルタ | fast に同型ノードが存在する「共通ノード」のみに絞る (差分ノードは必須扱いで保護) | `pruning/ast/diff.ts` の `SubtreeDiff.isCommon` |
+| 3 | AST 差分フィルタ | fast に同型ノードが存在する「共通ノード」のみに絞る (差分ノードは必須扱いで保護) | `pruning/ast/subtrees.ts` の `FastSubtreeSet.has` |
 
 候補は **`end - start` 降順 (大きいノード優先)** でソートして返す (`candidates.ts:nodeSize`)。size 降順で試す方が、成功時に一度に縮む量が大きく、外側ループ反復数が減るという経験則。
 

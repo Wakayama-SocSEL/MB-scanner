@@ -4,25 +4,28 @@ import type { File, Node } from "@babel/types";
 import { walkNodes } from "./walk";
 
 /**
- * slow のノードごとに「fast のどこかに同じノードがあるか」を判定する。
+ * fast 側のサブツリー集合への所属判定器。`has(node)` で node と同型のサブツリーが
+ * fast のどこかに存在するかを返す。
  *
- * 「同じ」はハッシュによる厳密一致で、タイプ・子・識別子名・リテラル値・演算子が
- * すべて揃って初めて同じ扱い。例えば `arr[0]` と `arr[1]` は別物になる。
+ * 「同型」はハッシュによる厳密一致で、タイプ・子・識別子名・リテラル値・演算子が
+ * すべて揃って初めて同型と扱う。例えば `arr[0]` と `arr[1]` は別物。実装は内部
+ * `canonicalHash` で文字列化した `Set<string>` だが、外部からはサブツリー集合
+ * として扱う API のみを公開する。
  *
  * 採用判断 (top-down subtree hash 自作 / bottom-up は非採用):
  *   - ai-guide/adr/0002-babel-topdown-subtree-hash.md
  *   - ai-guide/adr/0003-bottom-up-mapping-deferred.md
  */
-export class SubtreeDiff {
-  private readonly fastHashes: Set<string>;
+export class FastSubtreeSet {
+  private readonly hashes: Set<string>;
 
   constructor(fast: File) {
-    this.fastHashes = collectSubtreeHashes(fast);
+    this.hashes = collectSubtreeHashes(fast);
   }
 
-  /** node と同じノードが fast のどこかにあるか。 */
-  isCommon(node: Node): boolean {
-    return this.fastHashes.has(canonicalHash(node));
+  /** node と同型のサブツリーが fast のどこかに含まれるか。 */
+  has(node: Node): boolean {
+    return this.hashes.has(canonicalHash(node));
   }
 }
 
@@ -62,7 +65,7 @@ function hashChild(child: VisitorChild): string {
  * 全部一致すれば等しいハッシュを持つ。ソース位置・コメント・`extra` (原表記情報)
  * は計算に含めない — METADATA_KEYS 参照。
  */
-export function canonicalHash(node: Node): string {
+function canonicalHash(node: Node): string {
   const visitorKeys = VISITOR_KEYS[node.type] ?? [];
   const visitorKeySet = new Set<string>(visitorKeys);
 
@@ -158,48 +161,48 @@ if (import.meta.vitest) {
     });
   });
 
-  describe("SubtreeDiff.isCommon (in-source) — 基本", () => {
+  describe("FastSubtreeSet.has (in-source) — 基本", () => {
     it("同一ファイル同士では全ノードが common 判定", () => {
       const src = "const x = arr[0]; use(x);";
       const file = parse(src);
-      const diff = new SubtreeDiff(parse(src));
+      const diff = new FastSubtreeSet(parse(src));
       for (const stmt of file.program.body) {
-        expect(diff.isCommon(stmt)).toBe(true);
+        expect(diff.has(stmt)).toBe(true);
       }
     });
 
     it("fast の部分式として同型が存在するノードは common (a+b は (a+b)+c の左部分式)", () => {
       const slow = parse("a + b");
       const fast = parse("a + b + c");
-      const diff = new SubtreeDiff(fast);
+      const diff = new FastSubtreeSet(fast);
       const stmt = slow.program.body[0];
       if (stmt?.type !== "ExpressionStatement") throw new Error("unexpected");
-      expect(diff.isCommon(stmt.expression)).toBe(true);
+      expect(diff.has(stmt.expression)).toBe(true);
     });
 
     it("fast に同型サブツリーが存在しないノードは diff (演算子違い)", () => {
       const slow = parse("a - b");
       const fast = parse("a + b");
-      const diff = new SubtreeDiff(fast);
+      const diff = new FastSubtreeSet(fast);
       const stmt = slow.program.body[0];
       if (stmt?.type !== "ExpressionStatement") throw new Error("unexpected");
-      expect(diff.isCommon(stmt.expression)).toBe(false);
+      expect(diff.has(stmt.expression)).toBe(false);
     });
 
-    it("空のペアは有効な SubtreeDiff を作れる", () => {
-      const diff = new SubtreeDiff(parse(""));
+    it("空のペアは有効な FastSubtreeSet を作れる", () => {
+      const diff = new FastSubtreeSet(parse(""));
       const identOnly = firstStatement("x");
-      expect(diff.isCommon(identOnly)).toBe(false);
+      expect(diff.has(identOnly)).toBe(false);
     });
 
     it("単一ノードペアで共通ノードを正しく検出する", () => {
-      const diff = new SubtreeDiff(parse("x"));
+      const diff = new FastSubtreeSet(parse("x"));
       const node = firstStatement("x");
-      expect(diff.isCommon(node)).toBe(true);
+      expect(diff.has(node)).toBe(true);
     });
   });
 
-  describe("SubtreeDiff.isCommon (in-source) — Selakovic #1 (hasOwnProperty)", () => {
+  describe("FastSubtreeSet.has (in-source) — Selakovic #1 (hasOwnProperty)", () => {
     // slow: if (obj.hasOwnProperty(key)) { use(obj[key]); }
     // fast: use(obj[key]);
     // 差分フィルタの期待: obj / key / obj[key] / use(obj[key]) は common、
@@ -210,7 +213,7 @@ if (import.meta.vitest) {
     it("obj / key 識別子は common", () => {
       const slow = parse(SLOW_CODE);
       const fast = parse(FAST_CODE);
-      const diff = new SubtreeDiff(fast);
+      const diff = new FastSubtreeSet(fast);
 
       const ifStmt = slow.program.body[0];
       if (ifStmt?.type !== "IfStatement") throw new Error("expected IfStatement");
@@ -219,16 +222,16 @@ if (import.meta.vitest) {
       const memberExpr = callExpr.callee;
       if (memberExpr.type !== "MemberExpression") throw new Error("expected MemberExpression");
 
-      expect(diff.isCommon(memberExpr.object)).toBe(true); // obj
+      expect(diff.has(memberExpr.object)).toBe(true); // obj
       const keyArg = callExpr.arguments[0];
       if (keyArg === undefined) throw new Error("missing arg");
-      expect(diff.isCommon(keyArg)).toBe(true); // key
+      expect(diff.has(keyArg)).toBe(true); // key
     });
 
     it("hasOwnProperty 識別子は diff (fast には登場しない)", () => {
       const slow = parse(SLOW_CODE);
       const fast = parse(FAST_CODE);
-      const diff = new SubtreeDiff(fast);
+      const diff = new FastSubtreeSet(fast);
 
       const ifStmt = slow.program.body[0];
       if (ifStmt?.type !== "IfStatement") throw new Error("expected IfStatement");
@@ -237,15 +240,15 @@ if (import.meta.vitest) {
       const memberExpr = callExpr.callee;
       if (memberExpr.type !== "MemberExpression") throw new Error("expected MemberExpression");
 
-      expect(diff.isCommon(memberExpr.property)).toBe(false); // hasOwnProperty
-      expect(diff.isCommon(callExpr)).toBe(false);
-      expect(diff.isCommon(ifStmt)).toBe(false);
+      expect(diff.has(memberExpr.property)).toBe(false); // hasOwnProperty
+      expect(diff.has(callExpr)).toBe(false);
+      expect(diff.has(ifStmt)).toBe(false);
     });
 
     it("obj[key] の MemberExpression は common", () => {
       const slow = parse(SLOW_CODE);
       const fast = parse(FAST_CODE);
-      const diff = new SubtreeDiff(fast);
+      const diff = new FastSubtreeSet(fast);
 
       const ifStmt = slow.program.body[0];
       if (ifStmt?.type !== "IfStatement") throw new Error("unexpected");
@@ -258,8 +261,8 @@ if (import.meta.vitest) {
       const objKey = useCall.arguments[0];
       if (objKey === undefined || objKey.type !== "MemberExpression") throw new Error("unexpected");
 
-      expect(diff.isCommon(objKey)).toBe(true);
-      expect(diff.isCommon(useCall)).toBe(true);
+      expect(diff.has(objKey)).toBe(true);
+      expect(diff.has(useCall)).toBe(true);
     });
   });
 }
