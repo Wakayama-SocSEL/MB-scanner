@@ -231,7 +231,7 @@ if (import.meta.vitest) {
     it("差分ノードは diff 渡し時に除外される", () => {
       const slow = parse(SLOW_CODE);
       const fast = parse(FAST_CODE);
-      const diff = new SubtreeDiff(slow, fast);
+      const diff = new SubtreeDiff(fast);
 
       const candidates = enumerateCandidates(slow, diff);
       const flagIdent = candidates.find(
@@ -244,7 +244,7 @@ if (import.meta.vitest) {
     it("共通ノードは diff 渡し時にも候補に入る", () => {
       const slow = parse(SLOW_CODE);
       const fast = parse(FAST_CODE);
-      const diff = new SubtreeDiff(slow, fast);
+      const diff = new SubtreeDiff(fast);
 
       const candidates = enumerateCandidates(slow, diff);
       const keyIdents = candidates.filter(

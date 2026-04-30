@@ -42,7 +42,7 @@ describe("SubtreeDiff (property)", () => {
       fc.property(expressionArb, (code) => {
         const slow = parse(code);
         const fast = parse(code);
-        const diff = new SubtreeDiff(slow, fast);
+        const diff = new SubtreeDiff(fast);
         for (const node of walkAllNodes(slow)) {
           if (!diff.isCommon(node)) return false;
         }

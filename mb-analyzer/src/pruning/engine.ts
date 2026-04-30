@@ -86,17 +86,18 @@ export async function prune(input: PruningInput): Promise<PruningResult> {
   }
 
   // Phase 2: AST 差分フィルタ + 候補列挙 + DFS 走査
-  // 1 回 prune に成功したら AST が変わるので候補を再列挙する。再列挙のたびに
-  // SubtreeDiff も計算し直す。失敗候補のクロスパス dedup は将来の最適化として保留
-  // (canonical hash ベースで実装する余地あり)。
+  // 1 回 prune に成功したら slowAst が変わるので候補を再列挙する。SubtreeDiff は
+  // fast 側の hash 集合だけを保持し fast は不変なので、ループ外で 1 回だけ構築する。
+  // 失敗候補のクロスパス dedup は将来の最適化として保留 (canonical hash ベースで
+  // 実装する余地あり)。
   const placeholders: Placeholder[] = [];
   let iterations = 0;
   const startedAt = Date.now();
+  const diff = new SubtreeDiff(fastAst);
 
   while (iterations < cfg.max_iterations) {
     if (Date.now() - startedAt >= cfg.total_budget_ms) break;
 
-    const diff = new SubtreeDiff(slowAst, fastAst);
     const candidates = enumerateCandidates(slowAst, diff);
     if (candidates.length === 0) break;
 

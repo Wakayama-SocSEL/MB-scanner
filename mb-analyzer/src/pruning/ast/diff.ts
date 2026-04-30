@@ -16,7 +16,7 @@ import { walkNodes } from "./walk";
 export class SubtreeDiff {
   private readonly fastHashes: Set<string>;
 
-  constructor(_slow: File, fast: File) {
+  constructor(fast: File) {
     this.fastHashes = collectSubtreeHashes(fast);
   }
 
@@ -162,7 +162,7 @@ if (import.meta.vitest) {
     it("同一ファイル同士では全ノードが common 判定", () => {
       const src = "const x = arr[0]; use(x);";
       const file = parse(src);
-      const diff = new SubtreeDiff(file, parse(src));
+      const diff = new SubtreeDiff(parse(src));
       for (const stmt of file.program.body) {
         expect(diff.isCommon(stmt)).toBe(true);
       }
@@ -171,7 +171,7 @@ if (import.meta.vitest) {
     it("fast の部分式として同型が存在するノードは common (a+b は (a+b)+c の左部分式)", () => {
       const slow = parse("a + b");
       const fast = parse("a + b + c");
-      const diff = new SubtreeDiff(slow, fast);
+      const diff = new SubtreeDiff(fast);
       const stmt = slow.program.body[0];
       if (stmt?.type !== "ExpressionStatement") throw new Error("unexpected");
       expect(diff.isCommon(stmt.expression)).toBe(true);
@@ -180,20 +180,20 @@ if (import.meta.vitest) {
     it("fast に同型サブツリーが存在しないノードは diff (演算子違い)", () => {
       const slow = parse("a - b");
       const fast = parse("a + b");
-      const diff = new SubtreeDiff(slow, fast);
+      const diff = new SubtreeDiff(fast);
       const stmt = slow.program.body[0];
       if (stmt?.type !== "ExpressionStatement") throw new Error("unexpected");
       expect(diff.isCommon(stmt.expression)).toBe(false);
     });
 
     it("空のペアは有効な SubtreeDiff を作れる", () => {
-      const diff = new SubtreeDiff(parse(""), parse(""));
+      const diff = new SubtreeDiff(parse(""));
       const identOnly = firstStatement("x");
       expect(diff.isCommon(identOnly)).toBe(false);
     });
 
     it("単一ノードペアで共通ノードを正しく検出する", () => {
-      const diff = new SubtreeDiff(parse("x"), parse("x"));
+      const diff = new SubtreeDiff(parse("x"));
       const node = firstStatement("x");
       expect(diff.isCommon(node)).toBe(true);
     });
@@ -210,7 +210,7 @@ if (import.meta.vitest) {
     it("obj / key 識別子は common", () => {
       const slow = parse(SLOW_CODE);
       const fast = parse(FAST_CODE);
-      const diff = new SubtreeDiff(slow, fast);
+      const diff = new SubtreeDiff(fast);
 
       const ifStmt = slow.program.body[0];
       if (ifStmt?.type !== "IfStatement") throw new Error("expected IfStatement");
@@ -228,7 +228,7 @@ if (import.meta.vitest) {
     it("hasOwnProperty 識別子は diff (fast には登場しない)", () => {
       const slow = parse(SLOW_CODE);
       const fast = parse(FAST_CODE);
-      const diff = new SubtreeDiff(slow, fast);
+      const diff = new SubtreeDiff(fast);
 
       const ifStmt = slow.program.body[0];
       if (ifStmt?.type !== "IfStatement") throw new Error("expected IfStatement");
@@ -245,7 +245,7 @@ if (import.meta.vitest) {
     it("obj[key] の MemberExpression は common", () => {
       const slow = parse(SLOW_CODE);
       const fast = parse(FAST_CODE);
-      const diff = new SubtreeDiff(slow, fast);
+      const diff = new SubtreeDiff(fast);
 
       const ifStmt = slow.program.body[0];
       if (ifStmt?.type !== "IfStatement") throw new Error("unexpected");
