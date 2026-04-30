@@ -6,11 +6,11 @@
 
 ## コンテキスト
 
-ADR-0005 で pruning の候補位置 blacklist (L1) は `@babel/types` の文法メタデータから自動導出される構造になり、Selakovic 2016 dataset への依存が解消された。一方 **whitelist (`pruning/constants.ts:NODE_CATEGORY`) は依然として手選別** で、初期 plan (`tmp/0002_hydra-pruning-engine/plan.md` L30-31) で「JS によく出る型」として 16 型程度を挙げ、実装中に 24 型まで膨らんだ状態のまま運用されている。
+ADR-0005 で pruning の候補位置 blacklist (L1) は `@babel/types` の文法メタデータから自動導出される構造になり、Selakovic 2016 dataset への依存が解消された。一方 **whitelist (`pruning/rules/whitelist.ts:WHITELIST_CATEGORIES`) は依然として手選別** で、初期 plan (`tmp/0002_hydra-pruning-engine/plan.md` L30-31) で「JS によく出る型」として 16 型程度を挙げ、実装中に 24 型まで膨らんだ状態のまま運用されている。
 
 実測した結果:
 
-| | Babel alias 全体 | 現状 NODE_CATEGORY | カバー率 |
+| | Babel alias 全体 | 現状 WHITELIST_CATEGORIES | カバー率 |
 |---|---|---|---|
 | Statement | 47 型 | 6 型 | 12.8% |
 | Identifier | 1 型 | 1 型 | 100% |
@@ -34,7 +34,7 @@ ADR-0005 の論理 (「L1 = 文法レベル / L4 = 意味論レベル」の clea
 
 - **A. 現状維持 (手選別 24 型)**: plan.md の列挙をそのまま使う
 - **B. alias-driven 全展開 + 機械的除外**: `t.FLIPPED_ALIAS_KEYS.Statement` / `t.FLIPPED_ALIAS_KEYS.Expression` を全展開し、prefix / experimental タグで mechanical に除外
-- **C. whitelist 廃止 (型レベル除外を持たない)**: NODE_CATEGORY を 1 段廃止し、L1 blacklist + L3 round-trip + L4 等価性のみで候補管理
+- **C. whitelist 廃止 (型レベル除外を持たない)**: WHITELIST_CATEGORIES を 1 段廃止し、L1 blacklist + L3 round-trip + L4 等価性のみで候補管理
 
 ### 評価
 
@@ -49,7 +49,7 @@ ADR-0005 の論理 (「L1 = 文法レベル / L4 = 意味論レベル」の clea
 | 実装コスト | ✅ 0 | △ 中 (除外リスト整備) | △ 大 (categories.ts と HANDLERS の構造変更) |
 | Babel 追随保守 | 手動 | 自動 (除外集合のみ手動) | 自動 |
 
-C 案は **置換モード選択の根拠を失う**ため採用困難: 候補ノードに対して `deleteStatement` / `wildcardIdentifier` / `wildcardExpression` のどれを呼ぶかを決めるには「statement か / expression か / identifier か」のカテゴリ判定が必要で、これを廃すると alias 名から都度判定するか別の構造を作る必要がある。alias 由来 NODE_CATEGORY は B 案でも維持されるので、C のメリット (廃止) は得られない。
+C 案は **置換モード選択の根拠を失う**ため採用困難: 候補ノードに対して `deleteStatement` / `wildcardIdentifier` / `wildcardExpression` のどれを呼ぶかを決めるには「statement か / expression か / identifier か」のカテゴリ判定が必要で、これを廃すると alias 名から都度判定するか別の構造を作る必要がある。alias 由来 WHITELIST_CATEGORIES は B 案でも維持されるので、C のメリット (廃止) は得られない。
 
 A 案は dataset leak を残すうえ、第 1 段階 claim が「核心 (b) 40 型を取りこぼした最小化」に縮退するので採用しない。
 
@@ -119,7 +119,7 @@ parser.ts:plugins         constants.ts (whitelist)
 - parser が生成しない型を whitelist に含める → vacuous (実害はないが意図不明)
 - parser が生成する型を whitelist から落とす → recall 低下 (本来縮められる構造が縮まらない)
 
-実装側は `pruning/constants.ts` で「parser config から導出した whitelist を返す」関数として表現し、parser 設定変更が直接 whitelist に伝播するようにする (詳細は実装ステップ参照)。
+実装側は `pruning/rules/whitelist.ts` で「parser config から導出した whitelist を返す」関数として表現し、parser 設定変更が直接 whitelist に伝播するようにする (詳細は実装ステップ参照)。
 
 ### 対象言語拡張で扱える dataset 例
 
@@ -194,7 +194,7 @@ parser.ts:plugins         constants.ts (whitelist)
 ### 実装ステップ
 
 1. `pruning/ast/parser.ts:plugins` を **`[]` (素 JS 限定)** に変更 (TS / JSX plugin を OFF)。本 ADR 採択時点で同梱の paired-change
-2. `pruning/constants.ts` を `t.FLIPPED_ALIAS_KEYS` ベースの動的構築に書き換え。除外集合は本 ADR §機械的除外集合の 3 群を別定数で表現:
+2. `pruning/rules/whitelist.ts` を `t.FLIPPED_ALIAS_KEYS` ベースの動的構築に書き換え。除外集合は本 ADR §機械的除外集合の 3 群を別定数で表現:
    - `isPluginExcluded(type)` — `PARSER_PLUGINS` から有効化されていない plugin 由来の型を判定 (構造的 no-op)
    - `ALREADY_MINIMAL_TYPES` — `EmptyStatement` (アルゴリズム不変条件)
    - `EXPERIMENTAL_TYPES` — TC39 stage < 4 の明示リスト (時点規範的除外)

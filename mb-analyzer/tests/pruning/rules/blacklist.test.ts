@@ -21,14 +21,14 @@ import * as t from "@babel/types";
 import type { Node } from "@babel/types";
 
 import {
-  getGrammarBlacklist,
+  BLACKLIST_CATEGORIES,
   type ExcludeRule,
   type GrammarBlacklist,
 } from "../../../src/pruning/rules/blacklist";
-import { NODE_CATEGORY, type NodeCategory } from "../../../src/pruning/rules/whitelist";
+import { WHITELIST_CATEGORIES, type NodeCategory } from "../../../src/pruning/rules/whitelist";
 
-describe("getGrammarBlacklist — 方式 A snapshot (主要位置)", () => {
-  const bl = getGrammarBlacklist();
+describe("BLACKLIST_CATEGORIES — 方式 A snapshot (主要位置)", () => {
+  const bl = BLACKLIST_CATEGORIES;
 
   // 置換後の型が受理されないなら、カテゴリを問わず true (無条件除外)
   const ALL_CATEGORIES: readonly NodeCategory[] = ["statement", "identifier", "expression"];
@@ -127,7 +127,7 @@ describe("getGrammarBlacklist — 方式 A snapshot (主要位置)", () => {
   });
 });
 
-describe("getGrammarBlacklist — 方式 B (dry-run) との cross-check", () => {
+describe("BLACKLIST_CATEGORIES — 方式 B (dry-run) との cross-check", () => {
   /**
    * Babel 内部の特殊実装で A (introspection) と B (dry-run) が乖離する既知の型は
    * cross-check から除外する。これらは候補 enumerate の主要経路ではなく、かつ
@@ -152,17 +152,16 @@ describe("getGrammarBlacklist — 方式 B (dry-run) との cross-check", () => 
   ]);
 
   it("方式 A と方式 B の出力が既知の差分を除いて一致する", () => {
-    const a = normalizeFiltered(getGrammarBlacklist(), CROSSCHECK_SKIP_PARENTS);
+    const a = normalizeFiltered(BLACKLIST_CATEGORIES, CROSSCHECK_SKIP_PARENTS);
     const b = normalizeFiltered(buildByDryRun(), CROSSCHECK_SKIP_PARENTS);
     expect(a).toEqual(b);
   });
 });
 
-describe("getGrammarBlacklist — 構造 smoke", () => {
-  it("NODE_CATEGORY の全カテゴリがキーに含まれる", () => {
-    const bl = getGrammarBlacklist();
-    for (const cat of new Set(NODE_CATEGORY.values())) {
-      expect(bl[cat]).toBeInstanceOf(Map);
+describe("BLACKLIST_CATEGORIES — 構造 smoke", () => {
+  it("WHITELIST_CATEGORIES の全カテゴリがキーに含まれる", () => {
+    for (const cat of new Set(WHITELIST_CATEGORIES.values())) {
+      expect(BLACKLIST_CATEGORIES[cat]).toBeInstanceOf(Map);
     }
   });
 });

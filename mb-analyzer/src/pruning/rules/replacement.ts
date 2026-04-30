@@ -3,7 +3,7 @@ import type { Node } from "@babel/types";
 
 import { PLACEHOLDER_KIND, type PlaceholderKind } from "../../shared/pruning-contracts";
 
-import { NODE_CATEGORY, type NodeCategory } from "./whitelist";
+import { WHITELIST_CATEGORIES, type NodeCategory } from "./whitelist";
 
 /**
  * pruning 候補ノードに対する category dispatch の単一ソース。
@@ -35,11 +35,11 @@ const REPLACEMENTS: Record<NodeCategory, CategoryReplacement> = {
 };
 
 /**
- * `node` の Babel 型から CategoryReplacement を引く。whitelist (`NODE_CATEGORY`) に無い
+ * `node` の Babel 型から CategoryReplacement を引く。whitelist (`WHITELIST_CATEGORIES`) に無い
  * 型は候補対象外なので null。
  */
 export function replacementFor(node: Node): CategoryReplacement | null {
-  const category = NODE_CATEGORY.get(node.type);
+  const category = WHITELIST_CATEGORIES.get(node.type);
   return category === undefined ? null : REPLACEMENTS[category];
 }
 

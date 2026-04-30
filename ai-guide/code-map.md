@@ -189,7 +189,7 @@ if (slow.exception !== null || fast.exception !== null) {
 
 ファイル単位の詳細責務 / 依存方向 / 関連 ADR は [`mb-analyzer/src/pruning/README.md`](../mb-analyzer/src/pruning/README.md) に集約 (drift 面のローカル化)。
 
-新しい placeholder kind を追加するときの drift 面は **`rules/whitelist.ts:NODE_CATEGORY` (型 → カテゴリ) と `rules/replacement.ts:REPLACEMENTS` (カテゴリ → placeholderKind + buildNode) の 2 ファイル**に集約してある。`buildNode` がカテゴリごとの「化かし方 (EmptyStatement / Identifier / StringLiteral 生成)」を直接持つので、置換戦略の名前は引数 (string mode) として残らず、関数値として表現される。
+新しい placeholder kind を追加するときの drift 面は **`rules/whitelist.ts:WHITELIST_CATEGORIES` (型 → カテゴリ) と `rules/replacement.ts:REPLACEMENTS` (カテゴリ → placeholderKind + buildNode) の 2 ファイル**に集約してある。`buildNode` がカテゴリごとの「化かし方 (EmptyStatement / Identifier / StringLiteral 生成)」を直接持つので、置換戦略の名前は引数 (string mode) として残らず、関数値として表現される。
 
 ### データフロー
 
@@ -269,17 +269,17 @@ total_budget_ms: timeout_ms * max_iterations
 
 | # | フィルタ | 目的 | 実装 |
 |---|---|---|---|
-| 1 | 型 whitelist | pruning 可能な AST 型 (Statement / Expression / Identifier の 3 分類) のみ残す。**`@babel/types` の Statement / Expression alias から自動導出** (ADR-0006) | `pruning/rules/whitelist.ts` の `NODE_CATEGORY` keys |
-| 2 | 親子位置 blacklist | 親 field validator が置換後の型を受理しない位置を**文法由来で自動判定**し除外 (ADR-0005) | `pruning/rules/blacklist.ts` の `getGrammarBlacklist()` |
+| 1 | 型 whitelist | pruning 可能な AST 型 (Statement / Expression / Identifier の 3 分類) のみ残す。**`@babel/types` の Statement / Expression alias から自動導出** (ADR-0006) | `pruning/rules/whitelist.ts` の `WHITELIST_CATEGORIES` keys |
+| 2 | 親子位置 blacklist | 親 field validator が置換後の型を受理しない位置を**文法由来で自動判定**し除外 (ADR-0005) | `pruning/rules/blacklist.ts` の `BLACKLIST_CATEGORIES` |
 | 3 | AST 差分フィルタ | fast に同型ノードが存在する「共通ノード」のみに絞る (差分ノードは必須扱いで保護) | `pruning/ast/diff.ts` の `SubtreeDiff.isCommon` |
 
 候補は **`end - start` 降順 (大きいノード優先)** でソートして返す (`candidates.ts:nodeSize`)。size 降順で試す方が、成功時に一度に縮む量が大きく、外側ループ反復数が減るという経験則。
 
 #### whitelist のカバレッジ (ADR-0006)
 
-`NODE_CATEGORY` は `t.FLIPPED_ALIAS_KEYS.Statement` / `Expression` から alias-driven に構築され、3 群の機械的除外が適用される (構造的 no-op / アルゴリズム不変条件 / 時点規範的除外)。
+`WHITELIST_CATEGORIES` は `t.FLIPPED_ALIAS_KEYS.Statement` / `Expression` から alias-driven に構築され、3 群の機械的除外が適用される (構造的 no-op / アルゴリズム不変条件 / 時点規範的除外)。
 
-| | Babel alias 全体 | NODE_CATEGORY (現状) | カバー率 |
+| | Babel alias 全体 | WHITELIST_CATEGORIES (現状) | カバー率 |
 |---|---|---|---|
 | Statement | 47 型 | **24 型** | 51% |
 | Identifier | 1 型 | 1 型 | 100% |
@@ -347,7 +347,7 @@ L1 blacklist は `@babel/types` の `NODE_FIELDS[parent][key].validate` introspe
 - **LVal 位置**: `ForIn/OfStatement.left`, `AssignmentExpression.left`, `VariableDeclarator.id`, `CatchClause.param`
 - **Identifier-only 位置**: `MemberExpression.property (computed=false)`, `Object/ClassProperty/Method.key (computed=false)`, `Labeled/Break/ContinueStatement.label`, `Function*.id`, `Function*.params`
 - **destructuring LVal**: `RestElement.argument`, `ArrayPattern.elements`, `ObjectPattern.properties`
-- **module / TS 系**: `ImportSpecifier` / `ExportSpecifier` 識別子、`PrivateName`、`TSTypeAnnotation` — `NODE_CATEGORY` にない型は候補 whitelist 段階で既に弾かれるが、将来拡張時にも自動で L1 が追従する
+- **module / TS 系**: `ImportSpecifier` / `ExportSpecifier` 識別子、`PrivateName`、`TSTypeAnnotation` — `WHITELIST_CATEGORIES` にない型は候補 whitelist 段階で既に弾かれるが、将来拡張時にも自動で L1 が追従する
 
 **唯一の意図的 diff**: `UpdateExpression.argument` は旧手書き blacklist では除外していたが、文法上は `Expression` alias を受理するため自動導出では除外しない。意味論的に誤った prune は L4 等価性検証で弾く方針 (詳細は ADR-0005)。
 

@@ -3,7 +3,7 @@
  *
  * 観点:
  *   - replacementFor が 3 カテゴリそれぞれで正しい placeholderKind を返す
- *   - whitelist 外の型 (NODE_CATEGORY に無い) は null を返す
+ *   - whitelist 外の型 (WHITELIST_CATEGORIES に無い) は null を返す
  *   - buildNode が各カテゴリで適切な置換ノードを生成する
  *   - identifier の placeholderId が無効な場合に sanitize される (空文字列は $VAR に fallback)
  */

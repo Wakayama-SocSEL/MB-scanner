@@ -13,7 +13,7 @@
 import * as t from "@babel/types";
 import { describe, expect, it } from "vitest";
 
-import { NODE_CATEGORY, PARSER_PLUGINS } from "../../../src/pruning/rules/whitelist";
+import { WHITELIST_CATEGORIES, PARSER_PLUGINS } from "../../../src/pruning/rules/whitelist";
 
 const PRE_PR2_WHITELIST: ReadonlyArray<readonly [string, "statement" | "expression" | "identifier"]> = [
   ["IfStatement", "statement"],
@@ -61,34 +61,34 @@ describe("PARSER_PLUGINS", () => {
   });
 });
 
-describe("NODE_CATEGORY — 想定カバレッジ", () => {
+describe("WHITELIST_CATEGORIES — 想定カバレッジ", () => {
   it("statement カテゴリは 24 型", () => {
-    const stmt = [...NODE_CATEGORY.entries()].filter(([, v]) => v === "statement");
+    const stmt = [...WHITELIST_CATEGORIES.entries()].filter(([, v]) => v === "statement");
     expect(stmt.length).toBe(24);
   });
 
   it("identifier カテゴリは 1 型 (Identifier のみ)", () => {
-    const id = [...NODE_CATEGORY.entries()].filter(([, v]) => v === "identifier");
+    const id = [...WHITELIST_CATEGORIES.entries()].filter(([, v]) => v === "identifier");
     expect(id.map(([k]) => k)).toEqual(["Identifier"]);
   });
 
   it("expression カテゴリは 33 型", () => {
-    const expr = [...NODE_CATEGORY.entries()].filter(([, v]) => v === "expression");
+    const expr = [...WHITELIST_CATEGORIES.entries()].filter(([, v]) => v === "expression");
     expect(expr.length).toBe(33);
   });
 
   it("合計 58 型 (Babel 全 alias 99 のうち約 59%)", () => {
-    expect(NODE_CATEGORY.size).toBe(58);
+    expect(WHITELIST_CATEGORIES.size).toBe(58);
   });
 });
 
-describe("NODE_CATEGORY — 後方互換 (PR-2 以前のエントリは全て継承)", () => {
+describe("WHITELIST_CATEGORIES — 後方互換 (PR-2 以前のエントリは全て継承)", () => {
   it.each(PRE_PR2_WHITELIST)("既存型 %s は %s カテゴリで保持される", (type, category) => {
-    expect(NODE_CATEGORY.get(type)).toBe(category);
+    expect(WHITELIST_CATEGORIES.get(type)).toBe(category);
   });
 });
 
-describe("NODE_CATEGORY — 構造的 no-op (parser plugin OFF 由来の除外)", () => {
+describe("WHITELIST_CATEGORIES — 構造的 no-op (parser plugin OFF 由来の除外)", () => {
   it("TS prefix 型は除外される", () => {
     const flipped = (t as unknown as { FLIPPED_ALIAS_KEYS?: Record<string, string[]> })
       .FLIPPED_ALIAS_KEYS!;
@@ -97,7 +97,7 @@ describe("NODE_CATEGORY — 構造的 no-op (parser plugin OFF 由来の除外)"
     );
     expect(tsTypes.length).toBeGreaterThan(0); // 前提検証
     for (const ts of tsTypes) {
-      expect(NODE_CATEGORY.has(ts)).toBe(false);
+      expect(WHITELIST_CATEGORIES.has(ts)).toBe(false);
     }
   });
 
@@ -108,7 +108,7 @@ describe("NODE_CATEGORY — 構造的 no-op (parser plugin OFF 由来の除外)"
       s.startsWith("JSX"),
     );
     for (const jsx of jsxTypes) {
-      expect(NODE_CATEGORY.has(jsx)).toBe(false);
+      expect(WHITELIST_CATEGORIES.has(jsx)).toBe(false);
     }
   });
 
@@ -118,7 +118,7 @@ describe("NODE_CATEGORY — 構造的 no-op (parser plugin OFF 由来の除外)"
     const flowTypes = (flipped.Statement ?? []).filter((s) => s.startsWith("Declare"));
     expect(flowTypes.length).toBeGreaterThan(0);
     for (const flow of flowTypes) {
-      expect(NODE_CATEGORY.has(flow)).toBe(false);
+      expect(WHITELIST_CATEGORIES.has(flow)).toBe(false);
     }
   });
 
@@ -130,24 +130,24 @@ describe("NODE_CATEGORY — 構造的 no-op (parser plugin OFF 由来の除外)"
       "EnumDeclaration",
       "TypeCastExpression",
     ]) {
-      expect(NODE_CATEGORY.has(flow)).toBe(false);
+      expect(WHITELIST_CATEGORIES.has(flow)).toBe(false);
     }
   });
 });
 
-describe("NODE_CATEGORY — アルゴリズム不変条件", () => {
+describe("WHITELIST_CATEGORIES — アルゴリズム不変条件", () => {
   it("EmptyStatement は除外される (deleteStatement の置換ターゲット自身)", () => {
-    expect(NODE_CATEGORY.has("EmptyStatement")).toBe(false);
+    expect(WHITELIST_CATEGORIES.has("EmptyStatement")).toBe(false);
   });
 });
 
-describe("NODE_CATEGORY — 時点規範的除外 (TC39 stage < 4)", () => {
+describe("WHITELIST_CATEGORIES — 時点規範的除外 (TC39 stage < 4)", () => {
   it.each(EXPERIMENTAL_TYPES)("experimental 型 %s は除外される", (type) => {
-    expect(NODE_CATEGORY.has(type)).toBe(false);
+    expect(WHITELIST_CATEGORIES.has(type)).toBe(false);
   });
 });
 
-describe("NODE_CATEGORY — Babel メジャー追従の検出", () => {
+describe("WHITELIST_CATEGORIES — Babel メジャー追従の検出", () => {
   /**
    * 現時点 (ADR-0006 Date: 2026-04-27, Babel 7.x) で whitelist 入りする 58 型を
    * snapshot として固定する。Babel 更新で alias 構造が変われば本テストが失敗し、
@@ -155,7 +155,7 @@ describe("NODE_CATEGORY — Babel メジャー追従の検出", () => {
    * に従って ADR と除外集合を見直す合図となる。
    */
   it("現時点の 58 型を固定 (Babel alias 変更で fail → ADR-0006 見直し)", () => {
-    const sorted = [...NODE_CATEGORY.entries()].sort(([a], [b]) => a.localeCompare(b));
+    const sorted = [...WHITELIST_CATEGORIES.entries()].sort(([a], [b]) => a.localeCompare(b));
     expect(sorted).toMatchInlineSnapshot(`
       [
         [

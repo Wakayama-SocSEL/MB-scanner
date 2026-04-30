@@ -3,14 +3,14 @@ import type { File, Node } from "@babel/types";
 import type { SubtreeDiff } from "./ast/diff";
 import { nodeSize } from "./ast/inspect";
 import { walkNodes } from "./ast/walk";
-import { getGrammarBlacklist, type ExcludeRule, type GrammarBlacklist } from "./rules/blacklist";
-import { NODE_CATEGORY } from "./rules/whitelist";
+import { BLACKLIST_CATEGORIES, type ExcludeRule, type GrammarBlacklist } from "./rules/blacklist";
+import { WHITELIST_CATEGORIES } from "./rules/whitelist";
 
 /**
  * pruning 対象となる候補ノードを列挙する。
  *
  * 候補フィルタは 3 段 (`isCandidate`):
- *   1. 型 whitelist: pruning できる可能性のあるノード型 (NODE_CATEGORY) のみ残す
+ *   1. 型 whitelist: pruning できる可能性のあるノード型 (WHITELIST_CATEGORIES) のみ残す
  *   2. 親子 blacklist: 親 field validator が置換後の型 (EmptyStatement / Identifier /
  *      StringLiteral) を受理しない位置を除外。ルールは `@babel/types` の文法メタ
  *      データから `rules/blacklist.ts` で自動導出 (ADR 0005)
@@ -43,7 +43,7 @@ export function enumerateCandidates(
   diff?: SubtreeDiff,
 ): CandidatePath[] {
   const candidates: CandidatePath[] = [];
-  const blacklist = getGrammarBlacklist();
+  const blacklist = BLACKLIST_CATEGORIES;
 
   walkNodes(slow, ({ node, parent, parentKey, listIndex }) => {
     if (parent === null || parentKey === null) return;
@@ -70,7 +70,7 @@ function isCandidate(
   blacklist: GrammarBlacklist,
   diff: SubtreeDiff | undefined,
 ): boolean {
-  const category = NODE_CATEGORY.get(node.type);
+  const category = WHITELIST_CATEGORIES.get(node.type);
   if (category === undefined) return false;
 
   const rule = blacklist[category].get(parent.type)?.get(parentKey);
@@ -106,7 +106,7 @@ if (import.meta.vitest) {
 
   describe("isCandidate (in-source)", () => {
     it("whitelist 外の型は他段の状態に関わらず false", () => {
-      // Program は NODE_CATEGORY に無い → blacklist / diff の中身を読まずに弾かれる
+      // Program は WHITELIST_CATEGORIES に無い → blacklist / diff の中身を読まずに弾かれる
       expect(
         isCandidate(stubNode("Program"), stubNode("File"), "program", emptyBlacklist, undefined),
       ).toBe(false);
@@ -170,7 +170,7 @@ if (import.meta.vitest) {
   });
 
   describe("enumerateCandidates (in-source) — whitelist 連携", () => {
-    it("NODE_CATEGORY の 3 カテゴリすべてから候補が拾われる", () => {
+    it("WHITELIST_CATEGORIES の 3 カテゴリすべてから候補が拾われる", () => {
       const slow = parse("if (c) { use(arr[0]); }");
       const ts = candidateTypes(enumerateCandidates(slow));
       expect(ts).toContain("IfStatement"); // statement
@@ -181,7 +181,7 @@ if (import.meta.vitest) {
       expect(ts).toContain("Identifier"); // identifier
     });
 
-    it("NODE_CATEGORY 外の型 (VariableDeclarator / Program / File) は候補に入らない", () => {
+    it("WHITELIST_CATEGORIES 外の型 (VariableDeclarator / Program / File) は候補に入らない", () => {
       const slow = parse("const x = 1;");
       const ts = candidateTypes(enumerateCandidates(slow));
       expect(ts).not.toContain("VariableDeclarator");

@@ -11,8 +11,8 @@ src/pruning/
 ├── index.ts             ← 公開 re-export
 ├── rules/               ← pruning が扱う対象と戦略の宣言データ集
 │   ├── index.ts            ← barrel
-│   ├── whitelist.ts        ← NODE_CATEGORY (型 → カテゴリ) + PARSER_PLUGINS
-│   ├── blacklist.ts        ← getGrammarBlacklist (`@babel/types` 文法メタから自動導出)
+│   ├── whitelist.ts        ← WHITELIST_CATEGORIES (型 → カテゴリ) + PARSER_PLUGINS
+│   ├── blacklist.ts        ← BLACKLIST_CATEGORIES (`@babel/types` 文法メタから自動導出)
 │   └── replacement.ts      ← REPLACEMENTS (カテゴリ → placeholderKind + buildNode)
 └── ast/                 ← Babel AST 汎用 toolbox (pruning 知識ゼロ)
     ├── parser.ts           ← parse / generate / tryGenerateNode (Babel ラッパ)

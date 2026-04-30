@@ -105,7 +105,7 @@ function isExcluded(type: string): boolean {
  *   - `FLIPPED_ALIAS_KEYS.Statement` ∖ excluded → statement
  *   - `FLIPPED_ALIAS_KEYS.Expression` ∖ {Identifier} ∖ excluded → expression
  */
-function buildNodeCategory(): ReadonlyMap<string, NodeCategory> {
+function buildWhitelistCategories(): ReadonlyMap<string, NodeCategory> {
   const m = new Map<string, NodeCategory>();
   const flipped = (t as unknown as { FLIPPED_ALIAS_KEYS?: Record<string, string[]> })
     .FLIPPED_ALIAS_KEYS;
@@ -128,4 +128,4 @@ function buildNodeCategory(): ReadonlyMap<string, NodeCategory> {
   return m;
 }
 
-export const NODE_CATEGORY: ReadonlyMap<string, NodeCategory> = buildNodeCategory();
+export const WHITELIST_CATEGORIES: ReadonlyMap<string, NodeCategory> = buildWhitelistCategories();

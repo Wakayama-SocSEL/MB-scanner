@@ -1,12 +1,12 @@
 import * as t from "@babel/types";
 
-import { NODE_CATEGORY, type NodeCategory } from "./whitelist";
+import { WHITELIST_CATEGORIES, type NodeCategory } from "./whitelist";
 
 /**
  * 候補位置の除外ルールを `@babel/types` の文法メタデータから導出する。
  *
  * 出力は (category → parent 型 → 親から見た子 key → 除外ルール) の 3 段 Map。
- * 初回呼び出し時にのみ計算し、以降は module-level cache を返す。
+ * module load 時に 1 回だけ構築する (whitelist と対称)。
  *
  * 判断: ai-guide/adr/0005-grammar-derived-blacklist.md
  */
@@ -39,18 +39,6 @@ const CATEGORY_ALIAS: Readonly<Record<NodeCategory, string>> = {
   identifier: "Expression",
   expression: "Expression",
 };
-
-let cache: GrammarBlacklist | null = null;
-
-export function getGrammarBlacklist(): GrammarBlacklist {
-  if (cache !== null) return cache;
-  cache = buildGrammarBlacklist();
-  return cache;
-}
-
-function resetCache(): void {
-  cache = null;
-}
 
 /** `@babel/types` の validator introspection プロパティの minimum subset。 */
 interface ValidatorLike {
@@ -91,7 +79,7 @@ function isCategoryAccepted(allowed: ReadonlySet<string>, category: NodeCategory
 }
 
 const ALL_CATEGORIES: readonly NodeCategory[] = Array.from(
-  new Set(NODE_CATEGORY.values()),
+  new Set(WHITELIST_CATEGORIES.values()),
 );
 
 function buildGrammarBlacklist(): GrammarBlacklist {
@@ -171,21 +159,4 @@ function setRule(
   inner.set(key, rule);
 }
 
-// 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
-if (import.meta.vitest) {
-  const { describe, it, expect } = import.meta.vitest;
-
-  describe("getGrammarBlacklist build path (in-source)", () => {
-    it("cache reset 後の build が例外なく完了する", () => {
-      resetCache();
-      expect(() => getGrammarBlacklist()).not.toThrow();
-    });
-
-    it("二度目以降の呼び出しで同じインスタンスが返る (cache が効く)", () => {
-      resetCache();
-      const a = getGrammarBlacklist();
-      const b = getGrammarBlacklist();
-      expect(b).toBe(a);
-    });
-  });
-}
+export const BLACKLIST_CATEGORIES: GrammarBlacklist = buildGrammarBlacklist();
