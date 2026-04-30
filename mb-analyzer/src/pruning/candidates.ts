@@ -88,6 +88,9 @@ function isCandidate(
 // 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
 if (import.meta.vitest) {
   const { describe, it, expect } = import.meta.vitest;
+  // 本 if ブロック内でだけ必要なので遅延 import (production bundle には残らない)
+  const { parse } = await import("./ast/parser");
+  const { SubtreeDiff } = await import("./ast/diff");
 
   const stubNode = (type: string, extra: Record<string, unknown> = {}): Node =>
     ({ type, ...extra }) as unknown as Node;
@@ -97,6 +100,9 @@ if (import.meta.vitest) {
     identifier: new Map(),
     expression: new Map(),
   };
+
+  const candidateTypes = (nodes: Iterable<{ node: Node }>): string[] =>
+    [...nodes].map((c) => c.node.type);
 
   describe("isCandidate (in-source)", () => {
     it("whitelist 外の型は他段の状態に関わらず false", () => {
@@ -160,6 +166,136 @@ if (import.meta.vitest) {
 
       expect(isCandidate(id, parent, "expression", emptyBlacklist, diffReject)).toBe(false);
       expect(isCandidate(id, parent, "expression", emptyBlacklist, undefined)).toBe(true);
+    });
+  });
+
+  describe("enumerateCandidates (in-source) — whitelist 連携", () => {
+    it("NODE_CATEGORY の 3 カテゴリすべてから候補が拾われる", () => {
+      const slow = parse("if (c) { use(arr[0]); }");
+      const ts = candidateTypes(enumerateCandidates(slow));
+      expect(ts).toContain("IfStatement"); // statement
+      expect(ts).toContain("BlockStatement"); // statement
+      expect(ts).toContain("CallExpression"); // expression
+      expect(ts).toContain("MemberExpression"); // expression
+      expect(ts).toContain("NumericLiteral"); // expression
+      expect(ts).toContain("Identifier"); // identifier
+    });
+
+    it("NODE_CATEGORY 外の型 (VariableDeclarator / Program / File) は候補に入らない", () => {
+      const slow = parse("const x = 1;");
+      const ts = candidateTypes(enumerateCandidates(slow));
+      expect(ts).not.toContain("VariableDeclarator");
+      expect(ts).not.toContain("Program");
+      expect(ts).not.toContain("File");
+    });
+  });
+
+  describe("enumerateCandidates (in-source) — blacklist 連携", () => {
+    it("blacklist で除外される位置は候補から消える (代表例: VariableDeclarator.id の Identifier)", () => {
+      const slow = parse("const x = arr[0];");
+      const candidates = enumerateCandidates(slow);
+      const onIdSlot = candidates.filter(
+        (c) => c.parent.type === "VariableDeclarator" && c.parentKey === "id",
+      );
+      expect(onIdSlot).toHaveLength(0);
+    });
+
+    it("blacklist 対象でない位置は同じ型でも通常通り候補化される (init 側)", () => {
+      const slow = parse("const x = arr[0];");
+      const candidates = enumerateCandidates(slow);
+      const onInit = candidates.filter(
+        (c) => c.parent.type === "VariableDeclarator" && c.parentKey === "init",
+      );
+      expect(onInit.length).toBeGreaterThan(0);
+      expect(onInit[0]?.node.type).toBe("MemberExpression");
+    });
+
+    it("discriminator 条件付き blacklist が computed 値で切り替わる (MemberExpression.property)", () => {
+      // computed=false: `obj.x` の `x` は blacklist (Identifier-only 位置)
+      // computed=true:  `obj[expr]` の `expr` は blacklist 対象外
+      const slow = parse("obj.x + obj[k];");
+      const candidates = enumerateCandidates(slow);
+      const onProperty = candidates.filter(
+        (c) => c.parent.type === "MemberExpression" && c.parentKey === "property",
+      );
+      expect(onProperty).toHaveLength(1);
+      const parent = onProperty[0]?.parent as { computed?: boolean } | undefined;
+      expect(parent?.computed).toBe(true);
+    });
+  });
+
+  describe("enumerateCandidates (in-source) — SubtreeDiff 連携", () => {
+    const SLOW_CODE = "use(key, flag);";
+    const FAST_CODE = "use(key);";
+
+    it("差分ノードは diff 渡し時に除外される", () => {
+      const slow = parse(SLOW_CODE);
+      const fast = parse(FAST_CODE);
+      const diff = new SubtreeDiff(slow, fast);
+
+      const candidates = enumerateCandidates(slow, diff);
+      const flagIdent = candidates.find(
+        (c) =>
+          c.node.type === "Identifier" && (c.node as { name?: string }).name === "flag",
+      );
+      expect(flagIdent).toBeUndefined();
+    });
+
+    it("共通ノードは diff 渡し時にも候補に入る", () => {
+      const slow = parse(SLOW_CODE);
+      const fast = parse(FAST_CODE);
+      const diff = new SubtreeDiff(slow, fast);
+
+      const candidates = enumerateCandidates(slow, diff);
+      const keyIdents = candidates.filter(
+        (c) =>
+          c.node.type === "Identifier" && (c.node as { name?: string }).name === "key",
+      );
+      expect(keyIdents.length).toBeGreaterThan(0);
+    });
+
+    it("diff を渡さなければ差分フィルタは無効化される", () => {
+      const slow = parse(SLOW_CODE);
+      const candidates = enumerateCandidates(slow);
+      const flagIdent = candidates.find(
+        (c) =>
+          c.node.type === "Identifier" && (c.node as { name?: string }).name === "flag",
+      );
+      expect(flagIdent).toBeDefined();
+    });
+  });
+
+  describe("enumerateCandidates (in-source) — CandidatePath 構造", () => {
+    it("配列子は listIndex 付き、スカラ子は listIndex なし", () => {
+      const slow = parse("if (c) { a(); b(); }");
+      const candidates = enumerateCandidates(slow);
+
+      const blockChildren = candidates.filter(
+        (c) => c.parent.type === "BlockStatement" && c.parentKey === "body",
+      );
+      expect(blockChildren.length).toBeGreaterThan(0);
+      expect(blockChildren.every((c) => typeof c.listIndex === "number")).toBe(true);
+
+      const ifTest = candidates.find(
+        (c) => c.parent.type === "IfStatement" && c.parentKey === "test",
+      );
+      expect(ifTest).toBeDefined();
+      expect(ifTest?.listIndex).toBeUndefined();
+    });
+  });
+
+  describe("enumerateCandidates (in-source) — ソート", () => {
+    it("サイズ降順 (start/end 幅) でソートされる", () => {
+      const slow = parse("if (c) { const x = arr[0]; use(x); }");
+      const candidates = enumerateCandidates(slow);
+      expect(candidates[0]?.node.type).toBe("IfStatement");
+      const sizes = candidates.map((c) => (c.node.end ?? 0) - (c.node.start ?? 0));
+      for (let i = 0; i < sizes.length - 1; i++) {
+        const a = sizes[i];
+        const b = sizes[i + 1];
+        if (a === undefined || b === undefined) throw new Error("bounds");
+        expect(a).toBeGreaterThanOrEqual(b);
+      }
     });
   });
 }
