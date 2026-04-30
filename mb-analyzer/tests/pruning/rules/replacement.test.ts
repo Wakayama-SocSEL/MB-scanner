@@ -5,7 +5,7 @@
  *   - replacementFor が 3 カテゴリそれぞれで正しい placeholderKind を返す
  *   - whitelist 外の型 (NODE_CATEGORY に無い) は null を返す
  *   - buildNode が各カテゴリで適切な置換ノードを生成する
- *   - identifier の placeholderId が無効な場合に sanitize される
+ *   - identifier の placeholderId が無効な場合に sanitize される (空文字列は $VAR に fallback)
  */
 import * as t from "@babel/types";
 import { describe, expect, it } from "vitest";
@@ -70,6 +70,12 @@ describe("replacementFor — buildNode", () => {
     const r = replacementFor(t.identifier("foo"));
     const node = r!.buildNode("a-b.c") as t.Identifier;
     expect(node.name).toBe("a_b_c");
+  });
+
+  it("identifier: 空文字列の placeholderId は $VAR に fallback (境界系)", () => {
+    const r = replacementFor(t.identifier("foo"));
+    const node = r!.buildNode("") as t.Identifier;
+    expect(node.name).toBe("$VAR");
   });
 
   it("expression: StringLiteral を生成 (placeholderId が value)", () => {

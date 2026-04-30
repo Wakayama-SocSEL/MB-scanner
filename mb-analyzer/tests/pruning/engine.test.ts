@@ -3,7 +3,7 @@
  * 観点:
  *   - trivially-reducible: 全候補ワイルドカード化可なケースで iterations > 0
  *   - initial_mismatch: 初回検証で slow ≢ fast なら pruning を回さない
- *   - error: parse 失敗コードで verdict=error
+ *   - error: parse 失敗 / 初回等価性検証エラー (setup ランタイムエラー) で verdict=error
  *   - id エコーバック: 入力 id がそのまま結果に乗る
  *   - PR-2 alias-driven whitelist (ADR-0006): 新規追加型が候補化される
  */
@@ -98,6 +98,21 @@ describe("prune — error", () => {
       max_iterations: 10,
     });
     expect(result.verdict).toBe("error");
+  });
+
+  it("初回等価性検証で error verdict が返れば pruning 結果も error (setup ランタイムエラー)", async () => {
+    // setup でランタイムエラーを起こすと equivalence-checker が verdict=error を返し、
+    // prune はそれを Phase 1 で検出して PRUNING_VERDICT.ERROR に畳み込む (engine.ts L72-79)。
+    const result = await prune({
+      slow: "1",
+      fast: "1",
+      setup: "throw new Error('setup boom');",
+      timeout_ms: 2000,
+      max_iterations: 10,
+    });
+    expect(result.verdict).toBe("error");
+    expect(result.error_message).toBeDefined();
+    expect(result.node_count_before).toBeGreaterThan(0);
   });
 });
 
