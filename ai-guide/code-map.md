@@ -1,18 +1,8 @@
 # code-map — 実装の意味論リファレンス
 
-この文書は **実装がどう動いているか**（データフロー、責務分担、内部不変条件）を説明する**リファレンス**です。論文執筆時の引用元、深堀り時の参照、新メンバ onboarding を主な用途とします。
+この文書は **実装がどう動いているか**（データフロー、責務分担、内部不変条件）を説明する **Reference**。論文執筆時の引用元、深堀り時の参照、新メンバ onboarding を主な用途とする。
 
-## ai-guide 内での位置づけ
-
-`ai-guide/` は 3 軸で構成されています。書きたい内容の語尾で振り分けてください:
-
-| 文書 | 性質 | 想定文体 | 読者 |
-|---|---|---|---|
-| [`architecture/`](architecture/index.md) | **Contract**（〜すべき／〜禁止／〜と一致） | 表・条件文 | skill, レビュー時の自分 |
-| [`quality-check/`](quality-check/index.md) | **Process**（〜を確認する／〜で検証する） | 手順書 | skill, QA |
-| [`code-map.md`](code-map.md)（本文書） | **Reference**（〜する仕組み／〜のため〜） | 物語・図・データフロー | 論文執筆、onboarding |
-
-**矛盾時の優先順位**: 契約が正、リファレンスは補足。本文書と `architecture/` の記述が食い違う場合は `architecture/` 側を信じてください。
+ai-guide 全体での位置づけと他軸との住み分けは [`doc-strategy/index.md`](doc-strategy/index.md) を参照。**ファイル単位の詳細は in-tree README に委譲** し、本文書はモジュール単位の役割とデータフローまでで止める。
 
 ---
 
@@ -37,6 +27,8 @@
 ---
 
 ## 等価性検証器
+
+実装は `mb-analyzer/src/equivalence-checker/` 配下。ファイル単位の責務 / 依存方向 / 関連 ADR は [`mb-analyzer/src/equivalence-checker/README.md`](../mb-analyzer/src/equivalence-checker/README.md) を参照。本節は **観測軸とオラクル責務の意味論** に絞る。
 
 ### 観測軸: slow/fast と pre/post
 
@@ -184,24 +176,17 @@ if (slow.exception !== null || fast.exception !== null) {
 
 ## Pruning エンジン
 
-第 1 段階 (構造パターン導出) の本体。`(slow, fast, setup)` トリプルから **ワイルドカード付きの最小構造パターン** を出力する。実装は `mb-analyzer/src/pruning/` 配下。研究方針は [`current-research.md` §第 1 段階](current-research.md#第-1-段階-実行ベース-hydra-式-pruning) を参照。
+第 1 段階 (構造パターン導出) の本体。`(slow, fast, setup)` トリプルから **ワイルドカード付きの最小構造パターン** を出力する。実装は `mb-analyzer/src/pruning/` 配下、ファイル単位の詳細は [`mb-analyzer/src/pruning/README.md`](../mb-analyzer/src/pruning/README.md)。研究方針は [`current-research.md` §第 1 段階](current-research.md#第-1-段階-実行ベース-hydra-式-pruning) を参照。
 
-### ファイル構成
+### モジュール責務
 
-```
-src/pruning/
-├── engine.ts          ← prune (公開) + tryPruneCandidates (1 パス試行)
-├── categories.ts      ← NodeCategory → mode + placeholderKind dispatch (HANDLERS)
-├── constants.ts       ← NODE_CATEGORY (whitelist 兼カテゴリ分類)
-├── index.ts           ← 公開 re-export
-└── ast/
-    ├── parser.ts      ← parse / generate / tryGenerateNode
-    ├── candidates.ts  ← enumerateCandidates (3 段フィルタ + size 降順)
-    ├── replace.ts     ← replaceNode (1 箇所書き換え + round-trip 検証)
-    ├── diff.ts        ← SubtreeDiff (fast 側との共通ノード判定)
-    ├── grammar-blacklist.ts ← getGrammarBlacklist (ADR-0005)
-    └── inspect.ts     ← countNodes / snippetOfNode (read-only AST 検査)
-```
+| 領域 | 責務 |
+|---|---|
+| `engine.ts` | 公開 `prune` + 1 パス試行 `tryPruneCandidates`。Hydra 反復ループの本体 |
+| `categories.ts` / `constants.ts` | 候補ノードのカテゴリ分類 (statement / expression / identifier) と置換モード dispatch |
+| `ast/*` | 解析・列挙・置換・差分の AST 操作群 |
+
+ファイル単位の詳細責務 / 依存方向 / 関連 ADR は [`mb-analyzer/src/pruning/README.md`](../mb-analyzer/src/pruning/README.md) に集約 (drift 面のローカル化)。
 
 新しい placeholder kind を追加するときの drift 面は **`constants.ts:NODE_CATEGORY` (型 → カテゴリ) と `categories.ts:HANDLERS` (カテゴリ → mode + placeholderKind) の 2 ファイル**に集約してある。内部 `ReplacementMode` (実装視点) と公開 `PlaceholderKind` (consumer 視点) を別の型に保つのは、将来「同じ placeholderKind に複数 mode」が必要になった際の拡張余地のため。
 

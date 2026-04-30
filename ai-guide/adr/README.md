@@ -1,6 +1,6 @@
 # ADR (Architecture Decision Records)
 
-「なぜ A を選び B を選ばなかったか」を記録する。Contract (`architecture/`) / Process (`quality-check/`) / Reference (`code-map.md`) に続く **ai-guide の第 4 軸: Decisions**。
+「なぜ A を選び B を選ばなかったか」を記録する。ai-guide 4 軸のうち **Decisions** を担う (他軸との住み分けは [`doc-strategy/index.md`](../doc-strategy/index.md) を参照)。
 
 ## 住み分け
 
