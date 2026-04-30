@@ -23,7 +23,7 @@ src/equivalence-checker/
 ## 依存方向
 
 ```
-checker.ts ─ verdict.ts ─ shared/types
+checker.ts ─ verdict.ts ─ shared/equivalence-contracts
  ├─ oracles/return-value     ─┐
  ├─ oracles/argument-mutation ┤
  ├─ oracles/exception         ├─ sandbox/executor ─ sandbox/serializer

@@ -80,7 +80,8 @@ tests/
 ├── fixtures/                     # [テスト対象外] 2 箇所以上で共有するデータ・builder・lifecycle fixture
 │   └── *.ts
 ├── shared/                       # [unit] 末端層の型定義テスト (src/shared/ のミラー)
-│   └── types.test.ts
+│   ├── equivalence-contracts.test.ts
+│   └── pruning-contracts.test.ts
 ├── equivalence-checker/          # [unit] src/ 構造をミラー
 │   ├── checker.test.ts
 │   ├── verdict.test.ts
@@ -210,14 +211,14 @@ mise run test-analyzer-cov
 ### モックしてはいけない対象
 
 - **`vm` モジュール本体**: サンドボックス実行は実機で検証する（モックすると仕様が検証されない）
-- **`shared/types.ts` の型定義**: そのまま使う
+- **`shared/{equivalence,pruning}-contracts.ts` の型定義**: そのまま使う
 - **oracle 同士**: oracle の合成は `checker.test.ts` / `verdict.test.ts` で実機を使って検証する
 
 ### 実装方法
 
 - **基本ツール**: `vitest` 標準の `vi.fn()` / `vi.spyOn()` / `vi.mock()`
 - **stdin/stdout スパイ**: 既存の手書きパターン（`process.stdout.write` を差し替え、`afterEach` で元に戻す）を再利用
-- **型テスト**: `expectTypeOf<T>().toEqualTypeOf<U>()` で Python ↔ TS の型一致を検証（`tests/shared/types.test.ts` 参照）
+- **型テスト**: `expectTypeOf<T>().toEqualTypeOf<U>()` で Python ↔ TS の型一致を検証（`tests/shared/{equivalence,pruning}-contracts.test.ts` 参照）
 
 ### CLI E2E のパターン
 
