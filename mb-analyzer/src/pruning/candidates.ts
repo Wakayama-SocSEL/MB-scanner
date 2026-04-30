@@ -3,7 +3,7 @@ import type { File, Node } from "@babel/types";
 import type { FastSubtreeSet } from "./ast/subtrees";
 import { nodeSize } from "./ast/inspect";
 import { walkNodes } from "./ast/walk";
-import { BLACKLIST_CATEGORIES, type ExcludeRule, type GrammarBlacklist } from "./rules/blacklist";
+import { BLACKLIST_CATEGORIES, type ExcludeRule, type BlacklistCategories } from "./rules/blacklist";
 import { WHITELIST_CATEGORIES } from "./rules/whitelist";
 
 /**
@@ -67,7 +67,7 @@ function isCandidate(
   node: Node,
   parent: Node,
   parentKey: string,
-  blacklist: GrammarBlacklist,
+  blacklist: BlacklistCategories,
   diff: FastSubtreeSet | undefined,
 ): boolean {
   const category = WHITELIST_CATEGORIES.get(node.type);
@@ -95,7 +95,7 @@ if (import.meta.vitest) {
   const stubNode = (type: string, extra: Record<string, unknown> = {}): Node =>
     ({ type, ...extra }) as unknown as Node;
 
-  const emptyBlacklist: GrammarBlacklist = {
+  const emptyBlacklist: BlacklistCategories = {
     statement: new Map(),
     identifier: new Map(),
     expression: new Map(),
@@ -113,7 +113,7 @@ if (import.meta.vitest) {
     });
 
     it("blacklist rule === true は無条件除外", () => {
-      const blacklist: GrammarBlacklist = {
+      const blacklist: BlacklistCategories = {
         statement: new Map([["IfStatement", new Map([["test", true as ExcludeRule]])]]),
         identifier: new Map(),
         expression: new Map(),
@@ -131,7 +131,7 @@ if (import.meta.vitest) {
 
     it("discriminator 条件付き rule は親フィールド値で切り替わる", () => {
       const rule: ExcludeRule = { discriminator: "kind", value: ["const"] };
-      const blacklist: GrammarBlacklist = {
+      const blacklist: BlacklistCategories = {
         statement: new Map(),
         identifier: new Map([["VariableDeclarator", new Map([["id", rule]])]]),
         expression: new Map(),

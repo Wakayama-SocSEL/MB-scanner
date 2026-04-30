@@ -129,3 +129,105 @@ function buildWhitelistCategories(): ReadonlyMap<string, NodeCategory> {
 }
 
 export const WHITELIST_CATEGORIES: ReadonlyMap<string, NodeCategory> = buildWhitelistCategories();
+
+// 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
+if (import.meta.vitest) {
+  const { describe, it, expect } = import.meta.vitest;
+
+  const EXPERIMENTAL_TYPE_NAMES = [
+    "BindExpression",
+    "DoExpression",
+    "RecordExpression",
+    "TupleExpression",
+    "ModuleExpression",
+    "PipelineBareFunction",
+    "PipelinePrimaryTopicReference",
+    "PipelineTopicExpression",
+    "TopicReference",
+    "DecimalLiteral",
+  ];
+
+  describe("PARSER_PLUGINS (in-source)", () => {
+    it("対象言語は素 JS (plugin 配列は空)", () => {
+      expect(PARSER_PLUGINS).toEqual([]);
+    });
+  });
+
+  describe("WHITELIST_CATEGORIES (in-source) — 想定カバレッジ", () => {
+    it("statement カテゴリは 24 型", () => {
+      const stmt = [...WHITELIST_CATEGORIES.entries()].filter(([, v]) => v === "statement");
+      expect(stmt.length).toBe(24);
+    });
+
+    it("identifier カテゴリは 1 型 (Identifier のみ)", () => {
+      const id = [...WHITELIST_CATEGORIES.entries()].filter(([, v]) => v === "identifier");
+      expect(id.map(([k]) => k)).toEqual(["Identifier"]);
+    });
+
+    it("expression カテゴリは 33 型", () => {
+      const expr = [...WHITELIST_CATEGORIES.entries()].filter(([, v]) => v === "expression");
+      expect(expr.length).toBe(33);
+    });
+
+    it("合計 58 型 (Babel 全 alias 99 のうち約 59%)", () => {
+      expect(WHITELIST_CATEGORIES.size).toBe(58);
+    });
+  });
+
+  describe("WHITELIST_CATEGORIES (in-source) — 構造的 no-op (parser plugin OFF 由来の除外)", () => {
+    const flipped = (t as unknown as { FLIPPED_ALIAS_KEYS?: Record<string, string[]> })
+      .FLIPPED_ALIAS_KEYS!;
+
+    it("TS prefix 型は除外される", () => {
+      const tsTypes = [...(flipped.Statement ?? []), ...(flipped.Expression ?? [])].filter((s) =>
+        s.startsWith("TS"),
+      );
+      expect(tsTypes.length).toBeGreaterThan(0); // 前提検証
+      for (const ts of tsTypes) {
+        expect(WHITELIST_CATEGORIES.has(ts)).toBe(false);
+      }
+    });
+
+    it("JSX prefix 型は除外される", () => {
+      const jsxTypes = [...(flipped.Statement ?? []), ...(flipped.Expression ?? [])].filter((s) =>
+        s.startsWith("JSX"),
+      );
+      for (const jsx of jsxTypes) {
+        expect(WHITELIST_CATEGORIES.has(jsx)).toBe(false);
+      }
+    });
+
+    it("Flow Declare prefix 型は除外される", () => {
+      const flowTypes = (flipped.Statement ?? []).filter((s) => s.startsWith("Declare"));
+      expect(flowTypes.length).toBeGreaterThan(0);
+      for (const flow of flowTypes) {
+        expect(WHITELIST_CATEGORIES.has(flow)).toBe(false);
+      }
+    });
+
+    it("Flow 明示型 (TypeAlias / OpaqueType / InterfaceDeclaration / EnumDeclaration / TypeCastExpression) は除外される", () => {
+      for (const flow of [
+        "TypeAlias",
+        "OpaqueType",
+        "InterfaceDeclaration",
+        "EnumDeclaration",
+        "TypeCastExpression",
+      ]) {
+        expect(WHITELIST_CATEGORIES.has(flow)).toBe(false);
+      }
+    });
+  });
+
+  describe("WHITELIST_CATEGORIES (in-source) — アルゴリズム不変条件", () => {
+    it("EmptyStatement は除外される (deleteStatement の置換ターゲット自身)", () => {
+      expect(WHITELIST_CATEGORIES.has("EmptyStatement")).toBe(false);
+    });
+  });
+
+  describe("WHITELIST_CATEGORIES (in-source) — 時点規範的除外 (TC39 stage < 4)", () => {
+    it.each(EXPERIMENTAL_TYPE_NAMES)("experimental 型 %s は除外される", (type) => {
+      expect(WHITELIST_CATEGORIES.has(type)).toBe(false);
+    });
+  });
+}
+

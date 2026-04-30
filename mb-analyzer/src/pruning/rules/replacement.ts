@@ -1,5 +1,5 @@
 import { emptyStatement, identifier, stringLiteral } from "@babel/types";
-import type { Node } from "@babel/types";
+import type { Identifier, Node, StringLiteral } from "@babel/types";
 
 import { PLACEHOLDER_KIND, type PlaceholderKind } from "../../shared/pruning-contracts";
 
@@ -52,4 +52,98 @@ function sanitizeIdentifier(placeholderId: string): string {
   if (cleaned.length === 0) return "$VAR";
   if (/^[0-9]/.test(cleaned)) return `_${cleaned}`;
   return cleaned;
+}
+
+// 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
+if (import.meta.vitest) {
+  const { describe, it, expect } = import.meta.vitest;
+  const {
+    blockStatement,
+    callExpression,
+    ifStatement,
+    numericLiteral,
+    program,
+    variableDeclarator,
+    emptyStatement: makeEmptyStatement,
+    identifier: makeIdentifier,
+  } = await import("@babel/types");
+
+  describe("replacementFor (in-source) — placeholderKind", () => {
+    it("statement カテゴリ: STATEMENT", () => {
+      const node = ifStatement(makeIdentifier("c"), blockStatement([]));
+      expect(replacementFor(node)?.placeholderKind).toBe(PLACEHOLDER_KIND.STATEMENT);
+    });
+
+    it("identifier カテゴリ: IDENTIFIER", () => {
+      expect(replacementFor(makeIdentifier("foo"))?.placeholderKind).toBe(
+        PLACEHOLDER_KIND.IDENTIFIER,
+      );
+    });
+
+    it("expression カテゴリ (literal): EXPRESSION", () => {
+      expect(replacementFor(numericLiteral(42))?.placeholderKind).toBe(
+        PLACEHOLDER_KIND.EXPRESSION,
+      );
+    });
+
+    it("expression カテゴリ (composite): EXPRESSION", () => {
+      expect(replacementFor(callExpression(makeIdentifier("f"), []))?.placeholderKind).toBe(
+        PLACEHOLDER_KIND.EXPRESSION,
+      );
+    });
+
+    it("whitelist 外の型 (VariableDeclarator) は null", () => {
+      expect(
+        replacementFor(variableDeclarator(makeIdentifier("x"), numericLiteral(1))),
+      ).toBeNull();
+    });
+
+    it("whitelist 外の型 (Program) は null", () => {
+      expect(replacementFor(program([]))).toBeNull();
+    });
+
+    it("EmptyStatement は除外されるので null (アルゴリズム不変条件: 置換ターゲット自身)", () => {
+      expect(replacementFor(makeEmptyStatement())).toBeNull();
+    });
+  });
+
+  describe("replacementFor (in-source) — buildNode", () => {
+    it("statement: EmptyStatement を生成", () => {
+      const r = replacementFor(ifStatement(makeIdentifier("c"), blockStatement([])));
+      const node = r!.buildNode("$P0");
+      expect(node.type).toBe("EmptyStatement");
+    });
+
+    it("identifier: Identifier を生成 (placeholderId が name)", () => {
+      const r = replacementFor(makeIdentifier("foo"));
+      const node = r!.buildNode("$VAR") as Identifier;
+      expect(node.type).toBe("Identifier");
+      expect(node.name).toBe("$VAR");
+    });
+
+    it("identifier: 先頭数字の placeholderId は _ プレフィックスでサニタイズ", () => {
+      const r = replacementFor(makeIdentifier("foo"));
+      const node = r!.buildNode("123bad") as Identifier;
+      expect(node.name).toBe("_123bad");
+    });
+
+    it("identifier: 不正文字を含む placeholderId は _ に置換", () => {
+      const r = replacementFor(makeIdentifier("foo"));
+      const node = r!.buildNode("a-b.c") as Identifier;
+      expect(node.name).toBe("a_b_c");
+    });
+
+    it("identifier: 空文字列の placeholderId は $VAR に fallback (境界系)", () => {
+      const r = replacementFor(makeIdentifier("foo"));
+      const node = r!.buildNode("") as Identifier;
+      expect(node.name).toBe("$VAR");
+    });
+
+    it("expression: StringLiteral を生成 (placeholderId が value)", () => {
+      const r = replacementFor(numericLiteral(42));
+      const node = r!.buildNode("$P0") as StringLiteral;
+      expect(node.type).toBe("StringLiteral");
+      expect(node.value).toBe("$P0");
+    });
+  });
 }

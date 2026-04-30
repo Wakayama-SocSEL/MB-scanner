@@ -27,7 +27,7 @@ export type CategoryBlacklist = ReadonlyMap<
   ReadonlyMap<string, ExcludeRule>
 >;
 
-export type GrammarBlacklist = Readonly<Record<NodeCategory, CategoryBlacklist>>;
+export type BlacklistCategories = Readonly<Record<NodeCategory, CategoryBlacklist>>;
 
 /**
  * 候補カテゴリが受理されるために親 validator の `oneOfNodeTypes` に含まれていなければ
@@ -82,7 +82,21 @@ const ALL_CATEGORIES: readonly NodeCategory[] = Array.from(
   new Set(WHITELIST_CATEGORIES.values()),
 );
 
-function buildGrammarBlacklist(): GrammarBlacklist {
+function setRule(
+  map: Map<string, Map<string, ExcludeRule>>,
+  parentType: string,
+  key: string,
+  rule: ExcludeRule,
+): void {
+  let inner = map.get(parentType);
+  if (inner === undefined) {
+    inner = new Map();
+    map.set(parentType, inner);
+  }
+  inner.set(key, rule);
+}
+
+function buildBlacklistCategories(): BlacklistCategories {
   const byCategory: Record<NodeCategory, Map<string, Map<string, ExcludeRule>>> = {
     statement: new Map(),
     identifier: new Map(),
@@ -145,18 +159,91 @@ function buildGrammarBlacklist(): GrammarBlacklist {
   };
 }
 
-function setRule(
-  map: Map<string, Map<string, ExcludeRule>>,
-  parentType: string,
-  key: string,
-  rule: ExcludeRule,
-): void {
-  let inner = map.get(parentType);
-  if (inner === undefined) {
-    inner = new Map();
-    map.set(parentType, inner);
-  }
-  inner.set(key, rule);
-}
+export const BLACKLIST_CATEGORIES: BlacklistCategories = buildBlacklistCategories();
 
-export const BLACKLIST_CATEGORIES: GrammarBlacklist = buildGrammarBlacklist();
+// 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
+if (import.meta.vitest) {
+  const { describe, it, expect } = import.meta.vitest;
+
+  describe("BLACKLIST_CATEGORIES (in-source) — 方式 A snapshot (主要位置)", () => {
+    const allCategories: readonly NodeCategory[] = ["statement", "identifier", "expression"];
+
+    function ruleAt(cat: NodeCategory, parent: string, key: string): ExcludeRule | undefined {
+      return BLACKLIST_CATEGORIES[cat].get(parent)?.get(key);
+    }
+
+    it("ForInStatement.left は全カテゴリで無条件除外", () => {
+      for (const cat of allCategories) {
+        expect(ruleAt(cat, "ForInStatement", "left")).toBe(true);
+      }
+    });
+
+    it("ForInStatement.right は identifier/expression では除外されない (Expression 受理)", () => {
+      expect(ruleAt("identifier", "ForInStatement", "right")).toBeUndefined();
+      expect(ruleAt("expression", "ForInStatement", "right")).toBeUndefined();
+    });
+
+    it("ForInStatement.body は statement では除外されない (Statement 受理)", () => {
+      expect(ruleAt("statement", "ForInStatement", "body")).toBeUndefined();
+    });
+
+    it("AssignmentExpression.left は全カテゴリで無条件除外 (LVal 位置)", () => {
+      for (const cat of allCategories) {
+        expect(ruleAt(cat, "AssignmentExpression", "left")).toBe(true);
+      }
+    });
+
+    it("UpdateExpression.argument は identifier/expression では除外されない (文法上 Expression 受理)", () => {
+      // 旧手書き blacklist との意図的 diff (ADR-0005 §既知の diff)
+      expect(ruleAt("identifier", "UpdateExpression", "argument")).toBeUndefined();
+      expect(ruleAt("expression", "UpdateExpression", "argument")).toBeUndefined();
+      // statement は EmptyStatement 置換できないので除外
+      expect(ruleAt("statement", "UpdateExpression", "argument")).toBe(true);
+    });
+
+    it("MemberExpression.property は computed=false の条件で除外 (discriminator ルール構造の代表 pin)", () => {
+      // VariableDeclarator.id / ObjectProperty.key / ClassMethod.key も同様だが、
+      // VariableDeclarator は candidates.ts in-source の enumerate 経路で、
+      // ObjectProperty / ClassMethod は同じ discriminator ルール構造の重複なので
+      // 本位置 1 個で代表する。
+      const rule = ruleAt("identifier", "MemberExpression", "property");
+      expect(rule).toEqual({ discriminator: "computed", value: [false] });
+      expect(ruleAt("expression", "MemberExpression", "property")).toEqual({
+        discriminator: "computed",
+        value: [false],
+      });
+    });
+
+    it("CatchClause.param は identifier/expression で無条件除外 (binding 位置)", () => {
+      expect(ruleAt("identifier", "CatchClause", "param")).toBe(true);
+      expect(ruleAt("expression", "CatchClause", "param")).toBe(true);
+    });
+
+    it("FunctionDeclaration.id / params も無条件除外", () => {
+      expect(ruleAt("identifier", "FunctionDeclaration", "id")).toBe(true);
+      expect(ruleAt("identifier", "FunctionDeclaration", "params")).toBe(true);
+      expect(ruleAt("identifier", "ArrowFunctionExpression", "params")).toBe(true);
+    });
+
+    it("LabeledStatement.label / BreakStatement.label / ContinueStatement.label は無条件除外", () => {
+      expect(ruleAt("identifier", "LabeledStatement", "label")).toBe(true);
+      expect(ruleAt("identifier", "BreakStatement", "label")).toBe(true);
+      expect(ruleAt("identifier", "ContinueStatement", "label")).toBe(true);
+    });
+
+    it("RestElement.argument / ArrayPattern.elements / ObjectPattern.properties も除外 (destructuring LVal)", () => {
+      // 旧手書き blacklist には無かったが、自動導出では除外される
+      expect(ruleAt("identifier", "RestElement", "argument")).toBe(true);
+      expect(ruleAt("identifier", "ArrayPattern", "elements")).toBe(true);
+      expect(ruleAt("identifier", "ObjectPattern", "properties")).toBe(true);
+    });
+  });
+
+  describe("BLACKLIST_CATEGORIES (in-source) — 構造 smoke", () => {
+    it("WHITELIST_CATEGORIES の全カテゴリがキーに含まれる", () => {
+      for (const cat of new Set(WHITELIST_CATEGORIES.values())) {
+        expect(BLACKLIST_CATEGORIES[cat]).toBeInstanceOf(Map);
+      }
+    });
+  });
+}
