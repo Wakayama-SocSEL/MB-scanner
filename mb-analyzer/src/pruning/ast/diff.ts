@@ -95,7 +95,7 @@ export function canonicalHash(node: Node): string {
 /**
  * File とその全サブツリーのハッシュを Set で返す。
  */
-export function collectSubtreeHashes(file: File): Set<string> {
+function collectSubtreeHashes(file: File): Set<string> {
   const set = new Set<string>();
 
   function walk(node: Node): void {
@@ -117,4 +117,31 @@ export function collectSubtreeHashes(file: File): Set<string> {
 
   walk(file);
   return set;
+}
+
+// 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
+if (import.meta.vitest) {
+  const { describe, it, expect } = import.meta.vitest;
+  // parser は本 if ブロック内でだけ必要なので遅延 import (production bundle には残らない)
+  const { parse } = await import("./parser");
+
+  describe("collectSubtreeHashes (in-source)", () => {
+    it("空の File は 2 要素 (File と Program) だけを持つ", () => {
+      const hashes = collectSubtreeHashes(parse(""));
+      expect(hashes.size).toBe(2);
+    });
+
+    it("サブツリーも漏れなく含まれる: arr[0] は arr 識別子・0 リテラル・MemberExpression を持つ", () => {
+      const hashes = collectSubtreeHashes(parse("arr[0]"));
+
+      const memberStmt = parse("arr[0]").program.body[0];
+      if (memberStmt?.type !== "ExpressionStatement") throw new Error("unexpected");
+      const memberExpr = memberStmt.expression;
+      if (memberExpr.type !== "MemberExpression") throw new Error("unexpected");
+
+      expect(hashes.has(canonicalHash(memberExpr))).toBe(true);
+      expect(hashes.has(canonicalHash(memberExpr.object))).toBe(true); // arr (Identifier)
+      expect(hashes.has(canonicalHash(memberExpr.property))).toBe(true); // 0 (NumericLiteral)
+    });
+  });
 }

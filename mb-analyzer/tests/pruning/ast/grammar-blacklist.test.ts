@@ -22,7 +22,6 @@ import type { Node } from "@babel/types";
 
 import { NODE_CATEGORY, type NodeCategory } from "../../../src/pruning/constants";
 import {
-  __resetGrammarBlacklistCache,
   getGrammarBlacklist,
   type ExcludeRule,
   type GrammarBlacklist,
@@ -153,19 +152,13 @@ describe("getGrammarBlacklist — 方式 B (dry-run) との cross-check", () => 
   ]);
 
   it("方式 A と方式 B の出力が既知の差分を除いて一致する", () => {
-    __resetGrammarBlacklistCache();
     const a = normalizeFiltered(getGrammarBlacklist(), CROSSCHECK_SKIP_PARENTS);
     const b = normalizeFiltered(buildByDryRun(), CROSSCHECK_SKIP_PARENTS);
     expect(a).toEqual(b);
   });
 });
 
-describe("getGrammarBlacklist — smoke", () => {
-  it("build が例外なく完了する", () => {
-    __resetGrammarBlacklistCache();
-    expect(() => getGrammarBlacklist()).not.toThrow();
-  });
-
+describe("getGrammarBlacklist — 構造 smoke", () => {
   it("NODE_CATEGORY の全カテゴリがキーに含まれる", () => {
     const bl = getGrammarBlacklist();
     for (const cat of new Set(NODE_CATEGORY.values())) {

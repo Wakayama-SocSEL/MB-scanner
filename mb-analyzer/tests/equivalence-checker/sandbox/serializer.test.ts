@@ -1,8 +1,7 @@
 /**
- * 対象: serializeValue / serializeNumber (oracle 比較の末端で使う値 → 文字列の正規化)
+ * 対象: serializeValue (oracle 比較の末端で使う値 → 文字列の正規化)
  * 観点: 2 つの値の等価性を文字列同士の完全一致で判定するため、区別したい差異が保存され、循環は拒絶されること
  * 判定事項:
- *   - 数値: NaN / Infinity / -Infinity / -0 / 0 を文字列上で区別
  *   - primitive: undefined / null / boolean / 文字列エスケープ / bigint は "n" suffix
  *   - symbol → "<symbol:desc>"、関数 → "<function>"
  *   - 配列・オブジェクト: 要素連結、キーは sort 済みで順序非依存、ネスト再帰、NaN/-0 を保持
@@ -13,20 +12,8 @@
 import { describe, expect, it } from "vitest";
 import {
   SerializationError,
-  serializeNumber,
   serializeValue,
 } from "../../../src/equivalence-checker/sandbox/serializer";
-
-describe("serializeNumber", () => {
-  it("NaN / Infinity / -Infinity / -0 を区別する", () => {
-    expect(serializeNumber(NaN)).toBe("NaN");
-    expect(serializeNumber(Infinity)).toBe("Infinity");
-    expect(serializeNumber(-Infinity)).toBe("-Infinity");
-    expect(serializeNumber(-0)).toBe("-0");
-    expect(serializeNumber(0)).toBe("0");
-    expect(serializeNumber(3.14)).toBe("3.14");
-  });
-});
 
 describe("serializeValue: primitives", () => {
   it("undefined / null / boolean", () => {

@@ -11,7 +11,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Statement } from "@babel/types";
-import { SubtreeDiff, canonicalHash, collectSubtreeHashes } from "../../../src/pruning/ast/diff";
+import { SubtreeDiff, canonicalHash } from "../../../src/pruning/ast/diff";
 import { parse } from "../../../src/pruning/ast/parser";
 
 function firstStatement(code: string): Statement {
@@ -51,26 +51,6 @@ describe("canonicalHash", () => {
     const plain = canonicalHash(parse("arr[0]"));
     const withComment = canonicalHash(parse("// prefix\narr[0] // trailing"));
     expect(plain).toBe(withComment);
-  });
-});
-
-describe("collectSubtreeHashes", () => {
-  it("空の File は 2 要素 (File と Program) だけを持つ", () => {
-    const hashes = collectSubtreeHashes(parse(""));
-    expect(hashes.size).toBe(2);
-  });
-
-  it("サブツリーも漏れなく含まれる: arr[0] は arr 識別子・0 リテラル・MemberExpression を持つ", () => {
-    const hashes = collectSubtreeHashes(parse("arr[0]"));
-
-    const memberStmt = parse("arr[0]").program.body[0];
-    if (memberStmt?.type !== "ExpressionStatement") throw new Error("unexpected");
-    const memberExpr = memberStmt.expression;
-    if (memberExpr.type !== "MemberExpression") throw new Error("unexpected");
-
-    expect(hashes.has(canonicalHash(memberExpr))).toBe(true);
-    expect(hashes.has(canonicalHash(memberExpr.object))).toBe(true); // arr (Identifier)
-    expect(hashes.has(canonicalHash(memberExpr.property))).toBe(true); // 0 (NumericLiteral)
   });
 });
 

@@ -18,7 +18,7 @@ export function serializeValue(value: unknown): string {
   return serialize(value, []);
 }
 
-export function serializeNumber(n: number): string {
+function serializeNumber(n: number): string {
   if (Number.isNaN(n)) return "NaN";
   if (n === Number.POSITIVE_INFINITY) return "Infinity";
   if (n === Number.NEGATIVE_INFINITY) return "-Infinity";
@@ -74,4 +74,20 @@ function serialize(value: unknown, stack: object[]): string {
   } finally {
     stack.pop();
   }
+}
+
+// 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
+if (import.meta.vitest) {
+  const { describe, it, expect } = import.meta.vitest;
+
+  describe("serializeNumber (in-source)", () => {
+    it("NaN / Infinity / -Infinity / -0 を区別する", () => {
+      expect(serializeNumber(NaN)).toBe("NaN");
+      expect(serializeNumber(Infinity)).toBe("Infinity");
+      expect(serializeNumber(-Infinity)).toBe("-Infinity");
+      expect(serializeNumber(-0)).toBe("-0");
+      expect(serializeNumber(0)).toBe("0");
+      expect(serializeNumber(3.14)).toBe("3.14");
+    });
+  });
 }

@@ -48,7 +48,7 @@ export function getGrammarBlacklist(): GrammarBlacklist {
   return cache;
 }
 
-export function __resetGrammarBlacklistCache(): void {
+function resetCache(): void {
   cache = null;
 }
 
@@ -169,4 +169,23 @@ function setRule(
     map.set(parentType, inner);
   }
   inner.set(key, rule);
+}
+
+// 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
+if (import.meta.vitest) {
+  const { describe, it, expect } = import.meta.vitest;
+
+  describe("getGrammarBlacklist build path (in-source)", () => {
+    it("cache reset 後の build が例外なく完了する", () => {
+      resetCache();
+      expect(() => getGrammarBlacklist()).not.toThrow();
+    });
+
+    it("二度目以降の呼び出しで同じインスタンスが返る (cache が効く)", () => {
+      resetCache();
+      const a = getGrammarBlacklist();
+      const b = getGrammarBlacklist();
+      expect(b).toBe(a);
+    });
+  });
 }
