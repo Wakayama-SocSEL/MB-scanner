@@ -1,6 +1,6 @@
 # アーキテクチャ・設計ガイド
 
-ドキュメント配置の規約 (4 軸の住み分け、コメント層分離、in-tree README) は [`doc-strategy/index.md`](../doc-strategy/index.md) に集約。本文書は **Contract — TS / Python 双方の依存方向ルールと契約** のみを扱う。
+ドキュメント配置の規約 (4 軸の住み分け、コメント層分離、in-tree README) は [`doc-strategy/index.md`](../doc-strategy/index.md) に集約。本文書は **Contract — TS / Python 双方の依存方向ルール、契約、共通コーディング規約** を扱う。
 
 ---
 
@@ -67,6 +67,27 @@ MB-Scanner は、GitHub 上の多数の JavaScript リポジトリに対して C
 
 - Python → Node へ送る際は `model_dump_json(exclude_defaults=False, exclude_none=False)` を明示
 - 将来のリファクタで timeout_ms などがシリアライズから落ちる事故を防ぐ
+
+---
+
+## 共通コーディング規約 (両側)
+
+機械強制できないが両コードベースで揃えたい規約をここに集約します。判定基準は **両言語に同じ意図で適用したいスタイルで、機械強制できないもの**。言語固有の具体化は [`mb-scanner.md`](mb-scanner.md) / [`mb-analyzer.md`](mb-analyzer.md) の「コーディング規約」節へ。
+
+### ファイル内の宣言順序: bottom-up
+
+データ宣言ファイル / モジュールは bottom-up で並べます:
+
+1. 公開型 (`export type` / `class` / Pydantic Model)
+2. private helper (補助定数 / 内部 function)
+3. builder / factory function
+4. ★ exported const = ファイルの contract
+
+理由: ファイル末尾の「結論」を読む時点で依存部品が出揃っている状態にすることで、読み手が前方参照のために戻る必要がなくなる。Python は def hoisting が無いため物理的にこの順序が必須となるケースが多い。TypeScript は `function` 宣言の hoisting で `export const X = build()` を上に置けるが、本規約では bottom-up に揃える。
+
+代表例:
+- TS: `mb-analyzer/src/pruning/rules/whitelist.ts`, `blacklist.ts`
+- Python: `mb_scanner/domain/entities/*.py`
 
 ---
 
