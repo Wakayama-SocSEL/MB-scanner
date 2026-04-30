@@ -4,33 +4,45 @@
 
 ## ファイル index
 
-| file | 役割 | 主な依存 |
-|---|---|---|
-| `engine.ts` | 公開 `prune` + 1 パス試行 `tryPruneCandidates`。Hydra 反復ループ本体 | `ast/candidates`, `ast/replace`, `ast/inspect`, `categories`, `equivalence-checker` |
-| `categories.ts` | `NodeCategory → mode + placeholderKind` dispatch (HANDLERS) | `constants`, `shared/types`, `ast/replace` |
-| `constants.ts` | `NODE_CATEGORY` (whitelist 兼カテゴリ分類)、`PARSER_PLUGINS` | `@babel/types` |
-| `index.ts` | 公開 re-export | (none) |
-| `ast/parser.ts` | `parse` / `generate` / `tryGenerateNode` (Babel ラッパ) | `@babel/parser`, `@babel/generator` |
-| `ast/candidates.ts` | `enumerateCandidates` (3 段フィルタ + size 降順) | `constants`, `ast/diff`, `ast/grammar-blacklist` |
-| `ast/replace.ts` | `replaceNode` (1 箇所書き換え + round-trip 検証) | `ast/parser` |
-| `ast/diff.ts` | `SubtreeDiff` (top-down subtree hash で fast 共通ノード判定) | `@babel/types` |
-| `ast/grammar-blacklist.ts` | `getGrammarBlacklist` (`@babel/types` 文法メタから自動導出) | `constants` |
-| `ast/inspect.ts` | `countNodes` / `snippetOfNode` (read-only AST 検査) | `ast/parser` |
+```
+src/pruning/
+├── engine.ts            ← 公開 prune + tryPruneCandidates (mutate + revert / savepoint パターン)
+├── candidates.ts        ← enumerateCandidates (3 段フィルタ + size 降順)
+├── index.ts             ← 公開 re-export
+├── rules/               ← pruning が扱う対象と戦略の宣言データ集
+│   ├── index.ts            ← barrel
+│   ├── whitelist.ts        ← NODE_CATEGORY (型 → カテゴリ) + PARSER_PLUGINS
+│   ├── blacklist.ts        ← getGrammarBlacklist (`@babel/types` 文法メタから自動導出)
+│   └── replacement.ts      ← REPLACEMENTS (カテゴリ → placeholderKind + buildNode)
+└── ast/                 ← Babel AST 汎用 toolbox (pruning 知識ゼロ)
+    ├── parser.ts           ← parse / generate / tryGenerateNode (Babel ラッパ)
+    ├── inspect.ts          ← countNodes / snippetOfNode (read-only AST 検査)
+    └── diff.ts             ← SubtreeDiff (top-down subtree hash で fast 共通ノード判定)
+```
+
+3 層の役割分担:
+
+| 層 | 中身 | pruning 知識 | 入れ替え可能性 |
+|---|---|---|---|
+| ルート (engine, candidates) | アルゴリズム本体 | あり | このプロジェクト固有 |
+| `rules/` | 宣言データのみ (whitelist / blacklist / replacement) | あり | データ差し替え可能 |
+| `ast/` | parser / inspect / diff (Babel AST toolbox) | なし | 別プロジェクトに切り出し可能 |
 
 ## 依存方向
 
 ```
 engine.ts
- ├─ categories.ts ─── constants.ts
- ├─ ast/candidates.ts ─┬─ ast/grammar-blacklist.ts ─ constants.ts
- │                     ├─ ast/diff.ts
- │                     └─ constants.ts
- ├─ ast/replace.ts ─── ast/parser.ts
- ├─ ast/inspect.ts ─── ast/parser.ts
+ ├─ candidates.ts ──┬─ rules/whitelist.ts
+ │                  ├─ rules/blacklist.ts ── rules/whitelist.ts
+ │                  └─ ast/diff.ts
+ ├─ rules/replacement.ts ── rules/whitelist.ts
+ ├─ ast/parser.ts ── rules/whitelist.ts (PARSER_PLUGINS)
+ ├─ ast/inspect.ts ── ast/parser.ts
+ ├─ ast/diff.ts
  └─ ../equivalence-checker (上層モジュール)
 ```
 
-葉ノードは `constants.ts` / `ast/parser.ts` / `ast/diff.ts` (Babel のみに依存)。
+葉ノードは `rules/whitelist.ts` / `ast/parser.ts` / `ast/diff.ts` (Babel のみに依存)。
 
 ## 関連 ADR
 
@@ -38,6 +50,7 @@ engine.ts
 - [ADR-0002](../../../ai-guide/adr/0002-babel-topdown-subtree-hash.md): AST 差分判定に Babel + top-down subtree hash 自作 (`ast/diff.ts`)
 - [ADR-0003](../../../ai-guide/adr/0003-bottom-up-mapping-deferred.md): bottom-up mapping を第 2 段階以降に遅延
 - [ADR-0004](../../../ai-guide/adr/0004-pruning-setup-single.md): `PruningInput.setup` を単数 string にする
-- [ADR-0005](../../../ai-guide/adr/0005-grammar-derived-blacklist.md): 候補位置 blacklist を文法メタから自動導出 (`ast/grammar-blacklist.ts`)
-- [ADR-0006](../../../ai-guide/adr/0006-grammar-derived-whitelist.md): 候補型 whitelist を alias 由来で自動導出 (`constants.ts`)
-- [ADR-0007](../../../ai-guide/adr/0007-in-source-testing-internal-helpers.md): 内部ヘルパは in-source testing (`ast/candidates.ts`、`ast/grammar-blacklist.ts`、`ast/diff.ts` で適用中)
+- [ADR-0005](../../../ai-guide/adr/0005-grammar-derived-blacklist.md): 候補位置 blacklist を文法メタから自動導出 (`rules/blacklist.ts`)
+- [ADR-0006](../../../ai-guide/adr/0006-grammar-derived-whitelist.md): 候補型 whitelist を alias 由来で自動導出 (`rules/whitelist.ts`)
+- [ADR-0007](../../../ai-guide/adr/0007-in-source-testing-internal-helpers.md): 内部ヘルパは in-source testing (`candidates.ts`、`rules/blacklist.ts`、`ast/diff.ts` で適用中)
+- [ADR-0008](../../../ai-guide/adr/0008-mutate-revert-replacement.md): 候補置換を mutate + revert (savepoint パターン) で実装し `cloneAst` を廃止

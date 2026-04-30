@@ -2,7 +2,7 @@ import generateModule from "@babel/generator";
 import { parse as babelParse } from "@babel/parser";
 import type { File, Node } from "@babel/types";
 
-import { PARSER_PLUGINS } from "../constants";
+import { PARSER_PLUGINS } from "../rules/whitelist";
 
 /**
  * JS/TS スニペットを Babel で parse して File AST を返す。

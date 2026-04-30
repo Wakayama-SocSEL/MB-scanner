@@ -2,7 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-04-27
-- **Related**: ADR-0005 (blacklist 側の同方針), `mb-analyzer/src/pruning/constants.ts`, `mb-analyzer/src/pruning/categories.ts`, `ai-guide/code-map.md` §Pruning エンジン, `ai-guide/current-research.md` §第 1 段階
+- **Related**: ADR-0005 (blacklist 側の同方針), `mb-analyzer/src/pruning/rules/whitelist.ts`, `mb-analyzer/src/pruning/rules/replacement.ts`, `ai-guide/code-map.md` §Pruning エンジン, `ai-guide/current-research.md` §第 1 段階
 
 ## コンテキスト
 
@@ -236,4 +236,4 @@ parser.ts:plugins         constants.ts (whitelist)
 
 - production と test の責務分離は ADR-0005 と同じ: production は alias 引きの最小実装、cross-check / 差分監視は test 側
 - 「core JS 構文の包含」原則は研究コミュニティで広く共有される基準なので、reviewer に説明する際の defensive コストは ADR-0005 と同程度かそれ以下
-- 本 ADR と ADR-0005 のペアにより、`pruning/constants.ts` と `pruning/ast/grammar-blacklist.ts` の両方が `@babel/types` の introspection から導出される構造になる。論文中の第 1 段階説明で「文法由来 (grammar-derived)」と一言でカバーできるようになるのが本 ADR の最大の効用
+- 本 ADR と ADR-0005 のペアにより、`pruning/rules/whitelist.ts` と `pruning/rules/blacklist.ts` の両方が `@babel/types` の introspection から導出される構造になる。論文中の第 1 段階説明で「文法由来 (grammar-derived)」と一言でカバーできるようになるのが本 ADR の最大の効用

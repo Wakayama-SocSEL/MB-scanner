@@ -1,5 +1,5 @@
 /**
- * 対象: src/pruning/constants.ts (alias-driven whitelist 構築)
+ * 対象: src/pruning/rules/whitelist.ts (alias-driven whitelist 構築)
  *
  * 観点 (ADR-0006 実装ステップ 4-6):
  *   - PARSER_PLUGINS: 現状 [] (素 JS) で固定
@@ -13,7 +13,7 @@
 import * as t from "@babel/types";
 import { describe, expect, it } from "vitest";
 
-import { NODE_CATEGORY, PARSER_PLUGINS } from "../../src/pruning/constants";
+import { NODE_CATEGORY, PARSER_PLUGINS } from "../../../src/pruning/rules/whitelist";
 
 const PRE_PR2_WHITELIST: ReadonlyArray<readonly [string, "statement" | "expression" | "identifier"]> = [
   ["IfStatement", "statement"],

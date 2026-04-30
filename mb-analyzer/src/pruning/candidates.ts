@@ -1,9 +1,9 @@
 import { VISITOR_KEYS } from "@babel/types";
 import type { File, Node } from "@babel/types";
 
-import { NODE_CATEGORY } from "../constants";
-import type { SubtreeDiff } from "./diff";
-import { getGrammarBlacklist, type ExcludeRule, type GrammarBlacklist } from "./grammar-blacklist";
+import type { SubtreeDiff } from "./ast/diff";
+import { getGrammarBlacklist, type ExcludeRule, type GrammarBlacklist } from "./rules/blacklist";
+import { NODE_CATEGORY } from "./rules/whitelist";
 
 /**
  * pruning 対象となる候補ノードを列挙する。

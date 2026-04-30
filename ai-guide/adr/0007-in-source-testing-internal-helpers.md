@@ -2,7 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-04-30
-- **Related**: ADR-0005 (grammar-derived blacklist), ADR-0006 (grammar-derived whitelist), `mb-analyzer/src/pruning/ast/candidates.ts`, `ai-guide/quality-check/mb-analyzer.md`, `ai-guide/quality-check/mb-scanner.md`
+- **Related**: ADR-0005 (grammar-derived blacklist), ADR-0006 (grammar-derived whitelist), `mb-analyzer/src/pruning/candidates.ts`, `ai-guide/quality-check/mb-analyzer.md`, `ai-guide/quality-check/mb-scanner.md`
 
 ## コンテキスト
 
@@ -14,7 +14,7 @@
 この 2 点に対して **「考慮事項を整理した」audit trail としてのテスト** を残したい一方で、export して `tests/pruning/ast/` ツリーに直接 unit test を置くのは以下の点で不適切:
 
 1. 外部 API 表面を汚す (引数 5 個の predicate を export する積極的な理由が無い)
-2. integration test (`tests/pruning/ast/candidates.test.ts`) と被りが多く、`tests/` ツリーに二段階の "ほぼ同じテスト" が並ぶ
+2. integration test (`tests/pruning/candidates.test.ts`) と被りが多く、`tests/` ツリーに二段階の "ほぼ同じテスト" が並ぶ
 3. 一方、テスト不在のままにすると論文執筆時に「この内部不変条件は本当に成立するか」を遡って確認するコストが残る
 
 vitest には `import.meta.vitest` を介した **in-source testing** 機構があり、本番ビルド時に DCE で削除しつつ、テスト実行時のみ `if` ブロック内が有効化できる。これを「内部ヘルパ専用」のテスト配置として採用するかを決める必要がある。

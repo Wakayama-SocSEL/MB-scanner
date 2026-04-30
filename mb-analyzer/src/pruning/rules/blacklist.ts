@@ -1,6 +1,6 @@
 import * as t from "@babel/types";
 
-import { NODE_CATEGORY, type NodeCategory } from "../constants";
+import { NODE_CATEGORY, type NodeCategory } from "./whitelist";
 
 /**
  * 候補位置の除外ルールを `@babel/types` の文法メタデータから導出する。

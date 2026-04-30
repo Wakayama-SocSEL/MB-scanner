@@ -17,7 +17,7 @@ import * as t from "@babel/types";
  *   - expression: `"$Pn"` 文字列リテラル (式) に置換してワイルドカード化する
  *   - identifier: `$VAR` 識別子に置換してリネーム扱いにする
  *
- * 新しい placeholder kind の追加は `categories.ts:HANDLERS` を参照。
+ * 新しい placeholder kind の追加は `replacement.ts:REPLACEMENTS` を参照。
  */
 
 export type NodeCategory = "statement" | "expression" | "identifier";

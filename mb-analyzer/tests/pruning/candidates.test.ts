@@ -1,5 +1,5 @@
 /**
- * 対象: src/pruning/ast/candidates.ts (`enumerateCandidates` の責務統合)
+ * 対象: src/pruning/candidates.ts (`enumerateCandidates` の責務統合)
  *
  * 観点 (各責務が `enumerateCandidates` 内で正しく連携することを確認):
  *   - whitelist 連携: `NODE_CATEGORY` に含まれる型のみ候補化
@@ -8,14 +8,14 @@
  *   - CandidatePath 構造: parent / parentKey / listIndex の組み立て
  *   - サイズ降順ソート
  *
- * 位置別 ExcludeRule の正確性は `grammar-blacklist.test.ts` で個別検証する
+ * 位置別 ExcludeRule の正確性は `rules/blacklist.test.ts` で個別検証する
  * (本ファイルでは「整合した結果が得られる」レベルで止める)。
  */
 import { describe, expect, it } from "vitest";
 import type { Node } from "@babel/types";
-import { enumerateCandidates } from "../../../src/pruning/ast/candidates";
-import { SubtreeDiff } from "../../../src/pruning/ast/diff";
-import { parse } from "../../../src/pruning/ast/parser";
+import { enumerateCandidates } from "../../src/pruning/candidates";
+import { SubtreeDiff } from "../../src/pruning/ast/diff";
+import { parse } from "../../src/pruning/ast/parser";
 
 function types(nodes: Iterable<{ node: Node }>): string[] {
   return [...nodes].map((c) => c.node.type);

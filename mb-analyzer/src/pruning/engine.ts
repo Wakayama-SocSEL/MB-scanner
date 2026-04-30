@@ -1,4 +1,4 @@
-import type { File } from "@babel/types";
+import type { File, Node } from "@babel/types";
 
 import { checkEquivalence } from "../equivalence-checker";
 import {
@@ -9,12 +9,11 @@ import {
   type PruningResult,
 } from "../shared/types";
 
-import { enumerateCandidates, type CandidatePath } from "./ast/candidates";
 import { SubtreeDiff } from "./ast/diff";
 import { countNodes, snippetOfNode } from "./ast/inspect";
 import { generate, parse } from "./ast/parser";
-import { replaceNode } from "./ast/replace";
-import { handlerForNode } from "./categories";
+import { enumerateCandidates, type CandidatePath } from "./candidates";
+import { replacementFor } from "./rules/replacement";
 
 /**
  * Hydra 式実行ベース pruning の本体。
@@ -26,17 +25,14 @@ import { handlerForNode } from "./categories";
  *   2. AST 差分フィルタ: SubtreeDiff で fast に同型が存在する「共通ノード」のみを
  *      候補として列挙。差分ノードは「fast に対応物がない = パターンの本質」として
  *      必須扱い (試行しない)
- *   3. 候補を大きい順に DFS 走査: 1 箇所置換 → checkEquivalence → 等価なら AST 更新
- *      (ワイルドカード化) して次の候補へ; 非等価/error なら必須として残す
+ *   3. 候補を大きい順に DFS 走査: 1 候補ごとに親キーを mutate → 等価判定 → 等価なら
+ *      reparsed AST を採用、不等価/round-trip 失敗なら finally で必ず revert (DB の
+ *      savepoint パターン)。pruning は単スレッド逐次なので isolation 不要が成立
  *   4. budget (max_iterations / total_budget_ms) で打ち切り
  *
  * 単一 setup 設計の採用判断は ai-guide/adr/0004-pruning-setup-single.md 参照。
  */
 
-/**
- * pruning の拡張入力。public API (`prune`) は `PruningInput` だけを受け取り、
- * wall-time 上限などの詳細はここで内部的に解決する。
- */
 interface ResolvedConfig {
   readonly setup: string;
   readonly fastCode: string;
@@ -182,6 +178,7 @@ interface TryPruneResult {
 
 /**
  * 現在の候補リストを順に試し、最初に成功した 1 候補で AST を更新して返す。
+ * 各候補は親キーを mutate → 等価判定 → finally で必ず revert (savepoint パターン)。
  * 全候補が失敗、または budget 切れの場合は `pruned=false` を返し、`iterations` は
  * 試行で消費した分まで反映済み。
  */
@@ -199,43 +196,77 @@ async function tryPruneCandidates(args: TryPruneInput): Promise<TryPruneResult> 
     if (iterations >= cfg.max_iterations) return stop();
     if (Date.now() - startedAt >= cfg.total_budget_ms) return stop();
 
-    const handler = handlerForNode(candidate.node);
-    if (handler === null) continue; // whitelist 外 (通常 enumerateCandidates で弾かれる)
+    const replacement = replacementFor(candidate.node);
+    if (replacement === null) continue; // whitelist 外 (通常 enumerateCandidates で弾かれる)
 
     const placeholderId = `$P${placeholders.length}`;
-    const replaced = replaceNode({
-      file: slowAst,
-      parent: candidate.parent,
-      parentKey: candidate.parentKey,
-      ...(candidate.listIndex !== undefined ? { listIndex: candidate.listIndex } : {}),
-      mode: handler.mode,
-      placeholderId,
-    });
-    if (replaced === null) continue; // round-trip 失敗
+    const saved = readAt(candidate.parent, candidate.parentKey, candidate.listIndex);
+    if (!applyAt(candidate.parent, candidate.parentKey, candidate.listIndex, replacement.buildNode(placeholderId))) {
+      continue;
+    }
 
-    iterations += 1;
-    const result = await checkEquivalence({
-      setup: cfg.setup,
-      slow: replaced.code,
-      fast: cfg.fastCode,
-      timeout_ms: cfg.timeout_ms,
-    });
+    let succeeded = false;
+    try {
+      let code: string;
+      let reparsed: File;
+      try {
+        code = generate(slowAst);
+        reparsed = parse(code);
+      } catch {
+        continue; // round-trip 失敗 (finally で revert)
+      }
 
-    if (result.verdict === VERDICT.EQUAL) {
+      iterations += 1;
+      const result = await checkEquivalence({
+        setup: cfg.setup,
+        slow: code,
+        fast: cfg.fastCode,
+        timeout_ms: cfg.timeout_ms,
+      });
+
+      if (result.verdict !== VERDICT.EQUAL) continue; // 不等価 / error → 次候補へ
+
+      succeeded = true;
       placeholders.push({
         id: placeholderId,
-        kind: handler.placeholderKind,
+        kind: replacement.placeholderKind,
         original_snippet: snippetOfNode(candidate.node, currentSlowCode),
       });
       return {
         pruned: true,
-        nextAst: replaced.file,
-        nextCode: replaced.code,
+        nextAst: reparsed,
+        nextCode: code,
         iterations,
       };
+    } finally {
+      if (!succeeded) applyAt(candidate.parent, candidate.parentKey, candidate.listIndex, saved);
     }
-    // 等価でない (or error) → 次候補へ
   }
 
   return stop();
+}
+
+function readAt(parent: Node, parentKey: string, listIndex: number | undefined): unknown {
+  const record = parent as unknown as Record<string, unknown>;
+  if (listIndex === undefined) return record[parentKey];
+  const arr = record[parentKey];
+  return Array.isArray(arr) ? (arr as unknown[])[listIndex] : undefined;
+}
+
+function applyAt(
+  parent: Node,
+  parentKey: string,
+  listIndex: number | undefined,
+  value: unknown,
+): boolean {
+  const record = parent as unknown as Record<string, unknown>;
+  if (listIndex === undefined) {
+    record[parentKey] = value;
+    return true;
+  }
+  const arr = record[parentKey];
+  if (!Array.isArray(arr)) return false;
+  if (listIndex < 0 || listIndex >= arr.length) return false;
+  (arr as unknown[])[listIndex] = value;
+  return true;
 }

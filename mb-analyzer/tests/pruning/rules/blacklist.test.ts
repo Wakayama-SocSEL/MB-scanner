@@ -1,5 +1,5 @@
 /**
- * 対象: src/pruning/ast/grammar-blacklist.ts (文法由来 blacklist 自動導出; ADR 0005)
+ * 対象: src/pruning/rules/blacklist.ts (文法由来 blacklist 自動導出; ADR 0005)
  *
  * 観点:
  *   1. 方式 A (型 introspection) の snapshot test — 主要位置の除外ルールを固定値で pin
@@ -20,12 +20,12 @@ import { describe, expect, it } from "vitest";
 import * as t from "@babel/types";
 import type { Node } from "@babel/types";
 
-import { NODE_CATEGORY, type NodeCategory } from "../../../src/pruning/constants";
 import {
   getGrammarBlacklist,
   type ExcludeRule,
   type GrammarBlacklist,
-} from "../../../src/pruning/ast/grammar-blacklist";
+} from "../../../src/pruning/rules/blacklist";
+import { NODE_CATEGORY, type NodeCategory } from "../../../src/pruning/rules/whitelist";
 
 describe("getGrammarBlacklist — 方式 A snapshot (主要位置)", () => {
   const bl = getGrammarBlacklist();
