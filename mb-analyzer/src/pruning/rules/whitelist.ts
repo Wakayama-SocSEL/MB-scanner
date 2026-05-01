@@ -62,11 +62,7 @@ function isPluginExcluded(type: string): boolean {
 /**
  * 元から極小: `EmptyStatement` は構文上の空文 `;`。元コード由来の `;` を
  * 別 placeholder で置き換えても表現力は変わらず、候補列挙の無駄試行になるため除外。
- *
- * 旧: ADR-0009 以前は `EmptyStatement` が statement カテゴリの置換ターゲット自身
- * (自己置換ループ防止) という理由だったが、新置換先が
- * `ExpressionStatement(Identifier("$Pn"))` (ADR-0009) に変わり、自己置換ループの
- * 防止責務は `candidates.ts:isPlaceholderNode` に移っている。
+ * placeholder 自身の再候補化防止は `candidates.ts:isPlaceholderNode` (ADR-0009) が担う。
  */
 const ALREADY_MINIMAL_TYPES = new Set(["EmptyStatement"]);
 
