@@ -16,7 +16,7 @@ ai-guide 全体での位置づけと他軸との住み分けは [`doc-strategy/i
   - [ファイル構成](#ファイル構成)
   - [データフロー](#データフロー)
   - [試行回数 (iterations) と budget の関係](#試行回数-iterations-と-budget-の関係)
-  - [候補ノード決定の 3 段フィルタ](#候補ノード決定の-3-段フィルタ)
+  - [候補ノード決定の 4 段フィルタ](#候補ノード決定の-4-段フィルタ)
   - [置換操作の粒度 (3 カテゴリ統一のワイルドカード化)](#置換操作の粒度-3-カテゴリ統一のワイルドカード化)
   - [再列挙とクロスパス重複](#再列挙とクロスパス重複)
   - [pruning の正確性 — 多層防御](#pruning-の正確性--多層防御)
@@ -183,7 +183,7 @@ if (slow.exception !== null || fast.exception !== null) {
 | 領域 | 責務 |
 |---|---|
 | `engine.ts` | 公開 `prune` + 1 パス試行 `tryPruneCandidates`。Hydra 反復ループの本体 + mutate / revert (savepoint パターン) |
-| `candidates.ts` | AST 走査 + ルール適用で候補列挙 (whitelist / blacklist / FastSubtreeSet の 3 段フィルタ) |
+| `candidates.ts` | AST 走査 + ルール適用で候補列挙 (placeholder 除外 / whitelist / blacklist / FastSubtreeSet の 4 段フィルタ) |
 | `rules/` | pruning の対象と戦略の宣言データ集 (whitelist / blacklist / replacement) |
 | `ast/*` | Babel AST 汎用 toolbox (parser / inspect / diff)。pruning 固有の知識を持たない |
 
@@ -263,15 +263,16 @@ total_budget_ms: timeout_ms * max_iterations
 - 逆に少数の候補でも全て L4 まで到達すると `max_iterations` を消費しきる
 - `PruningResult.iterations` の値は「**Hydra 試行コストの実消費量**」を表し、ablation study で第 1 段階のコスト分析に使える
 
-### 候補ノード決定の 3 段フィルタ
+### 候補ノード決定の 4 段フィルタ
 
 `enumerateCandidates` は以下の条件をすべて満たすノードに限定する。
 
 | # | フィルタ | 目的 | 実装 |
 |---|---|---|---|
-| 1 | 型 whitelist | pruning 可能な AST 型 (Statement / Expression / Identifier の 3 分類) のみ残す。**`@babel/types` の Statement / Expression alias から自動導出** (ADR-0006) | `pruning/rules/whitelist.ts` の `WHITELIST_CATEGORIES` keys |
-| 2 | 親子位置 blacklist | 親 field validator が置換後の型を受理しない位置を**文法由来で自動判定**し除外 (ADR-0005) | `pruning/rules/blacklist.ts` の `BLACKLIST_CATEGORIES` |
-| 3 | AST 差分フィルタ | fast に同型ノードが存在する「共通ノード」のみに絞る (差分ノードは必須扱いで保護) | `pruning/ast/subtrees.ts` の `FastSubtreeSet.has` |
+| 1 | placeholder 自身の除外 | 前 iteration で挿入した `Identifier($Pn)` / `ExpressionStatement(Identifier($Pn))` を再候補化すると pruning ループが破綻するため除外 (ADR-0009) | `pruning/candidates.ts` の `isPlaceholderNode` |
+| 2 | 型 whitelist | pruning 可能な AST 型 (Statement / Expression / Identifier の 3 分類) のみ残す。**`@babel/types` の Statement / Expression alias から自動導出** (ADR-0006) | `pruning/rules/whitelist.ts` の `WHITELIST_CATEGORIES` keys |
+| 3 | 親子位置 blacklist | 親 field validator が置換後の型を受理しない位置を**文法由来で自動判定**し除外 (ADR-0005) | `pruning/rules/blacklist.ts` の `BLACKLIST_CATEGORIES` |
+| 4 | AST 差分フィルタ | fast に同型ノードが存在する「共通ノード」のみに絞る (差分ノードは必須扱いで保護) | `pruning/ast/subtrees.ts` の `FastSubtreeSet.has` |
 
 候補は **`end - start` 降順 (大きいノード優先)** でソートして返す (`candidates.ts:nodeSize`)。size 降順で試す方が、成功時に一度に縮む量が大きく、外側ループ反復数が減るという経験則。
 

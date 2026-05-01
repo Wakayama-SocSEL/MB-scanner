@@ -146,9 +146,36 @@ describe("prune — statement placeholder の可視化 (ADR-0009)", () => {
     // ため、成立した場合にのみ可視化形を assertion する (回帰防止重視)。
     if (stmtPlaceholders.length > 0) {
       expect(result.pattern_code).toMatch(/\$P\d+;/);
+      // ADR-0009: pattern_ast 上でも ExpressionStatement(Identifier(/^\$P\d+$/)) 形で
+      // 識別可能であることを型ベースで検証する。
+      expect(hasStatementPlaceholderNode(result.pattern_ast)).toBe(true);
     }
   }, 30_000);
 });
+
+/**
+ * pattern_ast (Babel AST の JSON シリアライズ) を再帰的に走査し、
+ * `ExpressionStatement(Identifier(/^\$P\d+$/))` 形のノードが存在するか判定する。
+ */
+function hasStatementPlaceholderNode(node: unknown): boolean {
+  if (node === null || typeof node !== "object") return false;
+  const n = node as { type?: string; expression?: { type?: string; name?: string } };
+  if (
+    n.type === "ExpressionStatement" &&
+    n.expression?.type === "Identifier" &&
+    /^\$P\d+$/.test(n.expression.name ?? "")
+  ) {
+    return true;
+  }
+  for (const value of Object.values(node)) {
+    if (Array.isArray(value)) {
+      for (const item of value) if (hasStatementPlaceholderNode(item)) return true;
+    } else if (value !== null && typeof value === "object") {
+      if (hasStatementPlaceholderNode(value)) return true;
+    }
+  }
+  return false;
+}
 
 describe("prune — PR-2 alias-driven whitelist の recall (ADR-0006)", () => {
   // ADR-0006 で whitelist が 24 → 58 型に拡大。PR-2 以前は候補化されなかった
