@@ -14,6 +14,12 @@ const buildOptions = {
   outfile: path.join(__dirname, "dist", "cli.js"),
   target: "node22",
   external: ["vm"],
+  // 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
+  // minifySyntax は esbuild の `if (...)` DCE を起動するために必須 (esbuild #1955)
+  define: {
+    "import.meta.vitest": "undefined",
+  },
+  minifySyntax: true,
   banner: {
     js: [
       "import { createRequire as __topLevelCreateRequire } from 'module';",

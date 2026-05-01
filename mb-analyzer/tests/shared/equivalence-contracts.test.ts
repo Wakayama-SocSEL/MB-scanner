@@ -1,5 +1,5 @@
 /**
- * 対象: src/shared/types.ts (Python ↔ TypeScript の JSON 契約の末端定義)
+ * 対象: src/shared/equivalence-contracts.ts (Python ↔ TypeScript の JSON 契約)
  * 観点: Python 側 Pydantic enum / StrEnum と同じ文字列値・同じ union 幅で型が narrow されていること
  * 判定事項:
  *   - VERDICT / ORACLE_VERDICT / ORACLE: Python 側 StrEnum と同一の文字列値 (runtime)
@@ -21,7 +21,7 @@ import {
   type OracleObservation,
   type OracleVerdict,
   type Verdict,
-} from "../../src/shared/types";
+} from "../../src/shared/equivalence-contracts";
 
 describe("VERDICT", () => {
   it("Python 側 Verdict StrEnum と同じ文字列値を持つ", () => {

@@ -1,4 +1,4 @@
-import { ORACLE, ORACLE_VERDICT, type OracleObservation } from "../../shared/types";
+import { ORACLE, ORACLE_VERDICT, type OracleObservation } from "../../shared/equivalence-contracts";
 import { serializeValue, SerializationError } from "../sandbox/serializer";
 import type { ExecutionCapture } from "../sandbox/executor";
 import type { ConsoleCall } from "../sandbox/stabilizer";
