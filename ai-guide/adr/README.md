@@ -72,3 +72,4 @@ export function collectSubtreeHashes(file: File): Set<string> { ... }
 | [0006](0006-grammar-derived-whitelist.md) | pruning 候補 whitelist を `@babel/types` の文法 alias から自動導出する | accepted | `mb-analyzer/src/pruning/rules/whitelist.ts` |
 | [0007](0007-in-source-testing-internal-helpers.md) | 内部ヘルパとモジュール内共有ヘルパは in-source testing、公開 API は `tests/` ツリーで分離する | accepted | `mb-analyzer/` |
 | [0008](0008-mutate-revert-replacement.md) | 候補置換を mutate + revert (savepoint パターン) で実装し cloneAst を廃止 | accepted | `mb-analyzer/src/pruning/engine.ts` |
+| [0009](0009-statement-placeholder-visibility.md) | statement カテゴリ placeholder を `ExpressionStatement(Identifier("$Pn"))` 形にして `$Pn;` として可視化 | accepted | `mb-analyzer/src/pruning/{rules/replacement.ts,candidates.ts,engine.ts}` |

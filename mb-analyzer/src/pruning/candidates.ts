@@ -4,17 +4,21 @@ import type { FastSubtreeSet } from "./ast/subtrees";
 import { nodeSize } from "./ast/inspect";
 import { walkNodes } from "./ast/walk";
 import { BLACKLIST_CATEGORIES, type ExcludeRule, type BlacklistCategories } from "./rules/blacklist";
+import { PLACEHOLDER_NAME_PATTERN } from "./rules/replacement";
 import { WHITELIST_CATEGORIES } from "./rules/whitelist";
 
 /**
  * pruning 対象となる候補ノードを列挙する。
  *
- * 候補フィルタは 3 段 (`isCandidate`):
- *   1. 型 whitelist: pruning できる可能性のあるノード型 (WHITELIST_CATEGORIES) のみ残す
- *   2. 親子 blacklist: 親 field validator が置換後の型 (EmptyStatement / Identifier /
+ * 候補フィルタは 4 段 (`isCandidate`):
+ *   1. placeholder 自身の除外: 前 iteration で生成した `$Pn` Identifier や
+ *      `ExpressionStatement(Identifier("$Pn"))` を再候補化すると pruning ループが
+ *      破綻する (placeholder を別 placeholder で置き換える) ため除外 (ADR-0009)
+ *   2. 型 whitelist: pruning できる可能性のあるノード型 (WHITELIST_CATEGORIES) のみ残す
+ *   3. 親子 blacklist: 親 field validator が置換後の型 (ExpressionStatement / Identifier /
  *      StringLiteral) を受理しない位置を除外。ルールは `@babel/types` の文法メタ
  *      データから `rules/blacklist.ts` で自動導出 (ADR 0005)
- *   3. FastSubtreeSet.has: fast に同型が存在する「共通ノード」に絞る
+ *   4. FastSubtreeSet.has: fast に同型が存在する「共通ノード」に絞る
  *      (研究計画 §第 1 段階 で「差分ノードは必須扱い」とするため)
  *
  * 結果は `end - start` の降順でソート。サイズが大きい候補を先に試す方が、成功
@@ -70,6 +74,8 @@ function isCandidate(
   blacklist: BlacklistCategories,
   diff: FastSubtreeSet | undefined,
 ): boolean {
+  if (isPlaceholderNode(node)) return false;
+
   const category = WHITELIST_CATEGORIES.get(node.type);
   if (category === undefined) return false;
 
@@ -83,6 +89,30 @@ function isCandidate(
   if (diff !== undefined && !diff.has(node)) return false;
 
   return true;
+}
+
+/**
+ * 前 iteration で挿入された placeholder ノード自身を判定する。
+ *
+ *   - `Identifier($Pn)`: identifier カテゴリの置換結果 (および statement の
+ *     ExpressionStatement の inner)
+ *   - `ExpressionStatement(Identifier($Pn))`: statement カテゴリの置換結果 (ADR-0009)
+ *
+ * ユーザー由来の `$P0` Identifier との判別は不能なので、ユーザーコードに
+ * `$Pn` 形があれば候補から外れる (= pruning では触らない) 副作用がある。
+ * `engine.prune()` が入力段階で warning を出してこのリスクを通知する。
+ */
+function isPlaceholderNode(node: Node): boolean {
+  if (node.type === "Identifier") {
+    return PLACEHOLDER_NAME_PATTERN.test(node.name);
+  }
+  if (node.type === "ExpressionStatement") {
+    const expr = node.expression;
+    if (expr.type === "Identifier") {
+      return PLACEHOLDER_NAME_PATTERN.test(expr.name);
+    }
+  }
+  return false;
 }
 
 // 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
@@ -103,6 +133,36 @@ if (import.meta.vitest) {
 
   const candidateTypes = (nodes: Iterable<{ node: Node }>): string[] =>
     [...nodes].map((c) => c.node.type);
+
+  describe("isCandidate (in-source) — placeholder ノード除外", () => {
+    it("Identifier の name が $Pn なら除外 (前 iteration で挿入された placeholder)", () => {
+      const ph = stubNode("Identifier", { name: "$P0" });
+      const parent = stubNode("ExpressionStatement");
+      expect(isCandidate(ph, parent, "expression", emptyBlacklist, undefined)).toBe(false);
+    });
+
+    it("ExpressionStatement(Identifier($Pn)) は除外 (statement placeholder の外側)", () => {
+      const ph = stubNode("ExpressionStatement", {
+        expression: { type: "Identifier", name: "$P3" },
+      });
+      const parent = stubNode("BlockStatement");
+      expect(isCandidate(ph, parent, "body", emptyBlacklist, undefined)).toBe(false);
+    });
+
+    it("ユーザー由来 Identifier ($P プレフィックスでも数字なし) は除外しない", () => {
+      const id = stubNode("Identifier", { name: "$P" });
+      const parent = stubNode("ExpressionStatement");
+      expect(isCandidate(id, parent, "expression", emptyBlacklist, undefined)).toBe(true);
+    });
+
+    it("ExpressionStatement の expression が Identifier 以外 (e.g. CallExpression) は通常通り候補化される", () => {
+      const stmt = stubNode("ExpressionStatement", {
+        expression: { type: "CallExpression" },
+      });
+      const parent = stubNode("BlockStatement");
+      expect(isCandidate(stmt, parent, "body", emptyBlacklist, undefined)).toBe(true);
+    });
+  });
 
   describe("isCandidate (in-source)", () => {
     it("whitelist 外の型は他段の状態に関わらず false", () => {
@@ -281,6 +341,31 @@ if (import.meta.vitest) {
       );
       expect(ifTest).toBeDefined();
       expect(ifTest?.listIndex).toBeUndefined();
+    });
+  });
+
+  describe("enumerateCandidates (in-source) — placeholder 除外", () => {
+    it("入力に既に $Pn Identifier があれば候補から外れる", () => {
+      // ユーザーが偶然 `$P0` という名前の変数を書いた想定 (判別不能は ADR-0009 で許容)
+      const slow = parse("$P0; foo();");
+      const ts = candidateTypes(enumerateCandidates(slow));
+      // foo, ExpressionStatement(foo()) などは候補化されるが、$P0 の Identifier と
+      // それを包む ExpressionStatement は除外される
+      const placeholderIdent = enumerateCandidates(slow).find(
+        (c) =>
+          c.node.type === "Identifier" &&
+          (c.node as { name?: string }).name === "$P0",
+      );
+      expect(placeholderIdent).toBeUndefined();
+      const placeholderStmt = enumerateCandidates(slow).find(
+        (c) =>
+          c.node.type === "ExpressionStatement" &&
+          ((c.node as { expression?: { type?: string; name?: string } }).expression?.name ===
+            "$P0"),
+      );
+      expect(placeholderStmt).toBeUndefined();
+      // 通常コード由来の候補は残る
+      expect(ts).toContain("CallExpression"); // foo()
     });
   });
 

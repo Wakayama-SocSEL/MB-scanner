@@ -12,8 +12,9 @@ import {
 import { FastSubtreeSet } from "./ast/subtrees";
 import { countNodes, snippetOfNode } from "./ast/inspect";
 import { generate, parse } from "./ast/parser";
+import { walkNodes } from "./ast/walk";
 import { enumerateCandidates, type CandidatePath } from "./candidates";
-import { replacementFor } from "./rules/replacement";
+import { PLACEHOLDER_NAME_PATTERN, replacementFor } from "./rules/replacement";
 
 /**
  * Hydra 式実行ベース pruning の本体。
@@ -61,6 +62,12 @@ export async function prune(input: PruningInput): Promise<PruningResult> {
   }
 
   const nodeCountBefore = countNodes(slowAst);
+
+  // 入力に placeholder 形 (`$Pn`) の Identifier があれば warning を出す (ADR-0009)。
+  // 動作は変えない: 候補列挙では placeholder と区別できず除外される副作用があるが、
+  // 等価性検証は普通の Identifier として走る。ユーザー側の知っておくべきリスク。
+  warnIfPlaceholderCollision(slowAst, "slow");
+  warnIfPlaceholderCollision(fastAst, "fast");
 
   // Phase 1: 初回等価性検証。slow ≡ fast でなければ pruning を回す意味がない。
   const initialCheck = await checkEquivalence({
@@ -245,6 +252,27 @@ async function tryPruneCandidates(args: TryPruneInput): Promise<TryPruneResult> 
   return stop();
 }
 
+/**
+ * 入力 AST に placeholder と同じ命名 (`$Pn`) の Identifier が含まれていれば
+ * stderr に warning を出す。pruning 動作は変えない (候補列挙では placeholder と
+ * 区別できず除外される副作用のみ)。ADR-0009。
+ *
+ * 重複検出を避けるため、同じ name は 1 input につき 1 行だけ通知する。
+ */
+function warnIfPlaceholderCollision(ast: File, label: "slow" | "fast"): void {
+  const seen = new Set<string>();
+  walkNodes(ast, ({ node }) => {
+    if (node.type !== "Identifier") return;
+    const { name } = node;
+    if (!PLACEHOLDER_NAME_PATTERN.test(name)) return;
+    if (seen.has(name)) return;
+    seen.add(name);
+    process.stderr.write(
+      `warning: input (${label}) contains identifier "${name}" which collides with internal placeholder format. pruning may produce ambiguous results.\n`,
+    );
+  });
+}
+
 function readAt(parent: Node, parentKey: string, listIndex: number | undefined): unknown {
   const record = parent as unknown as Record<string, unknown>;
   if (listIndex === undefined) return record[parentKey];
@@ -277,7 +305,55 @@ function writeAt(
 
 // 判断: ai-guide/adr/0007-in-source-testing-internal-helpers.md
 if (import.meta.vitest) {
-  const { describe, it, expect } = import.meta.vitest;
+  const { describe, it, expect, vi } = import.meta.vitest;
+
+  describe("warnIfPlaceholderCollision (in-source)", () => {
+    it("入力に $Pn Identifier があれば stderr に warning を 1 行出す", () => {
+      const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      try {
+        warnIfPlaceholderCollision(parse("const $P0 = 1;"), "slow");
+        const calls = spy.mock.calls.map((c) => String(c[0]));
+        expect(calls.some((m) => m.includes("warning") && m.includes("$P0") && m.includes("slow")))
+          .toBe(true);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("同じ name の重複出現は 1 行に dedup される", () => {
+      const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      try {
+        warnIfPlaceholderCollision(parse("$P0; $P0; $P0;"), "fast");
+        const matches = spy.mock.calls.filter((c) => String(c[0]).includes("$P0"));
+        expect(matches.length).toBe(1);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("複数の異なる $Pn name は別行で通知される", () => {
+      const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      try {
+        warnIfPlaceholderCollision(parse("$P0; $P1;"), "slow");
+        const lines = spy.mock.calls.map((c) => String(c[0]));
+        expect(lines.some((m) => m.includes("$P0"))).toBe(true);
+        expect(lines.some((m) => m.includes("$P1"))).toBe(true);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("placeholder 形と無関係な Identifier では warning は出ない", () => {
+      const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      try {
+        warnIfPlaceholderCollision(parse("const x = $P; foo();"), "slow");
+        // `$P` (数字なし) は PLACEHOLDER_NAME_PATTERN に合わない
+        expect(spy).not.toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+      }
+    });
+  });
 
   describe("resolveBudget (in-source)", () => {
     it("timeout_ms / max_iterations のデフォルトは 5_000 / 1_000、total_budget_ms はその積", () => {

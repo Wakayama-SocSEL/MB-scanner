@@ -1,9 +1,19 @@
-import { emptyStatement, identifier, stringLiteral } from "@babel/types";
-import type { Identifier, Node, StringLiteral } from "@babel/types";
+import { expressionStatement, identifier, stringLiteral } from "@babel/types";
+import type { ExpressionStatement, Identifier, Node, StringLiteral } from "@babel/types";
 
 import { PLACEHOLDER_KIND, type PlaceholderKind } from "../../shared/pruning-contracts";
 
 import { WHITELIST_CATEGORIES, type NodeCategory } from "./whitelist";
+
+/**
+ * placeholder の Identifier 名規則。
+ *
+ * `$P` + 数字連番 (`$P0`, `$P1`, ...) を全カテゴリ共通で使う。
+ * `replacement.ts` の `sanitizeIdentifier` で生成する形と、`candidates.ts` で
+ * 「placeholder ノード自身を再候補化しない」フィルタが照合する形を 1 箇所で
+ * 定義し、drift を防ぐ単一ソース (ADR-0009)。
+ */
+export const PLACEHOLDER_NAME_PATTERN = /^\$P\d+$/;
 
 /**
  * pruning 候補ノードに対する category dispatch の単一ソース。
@@ -22,7 +32,11 @@ export interface CategoryReplacement {
 const REPLACEMENTS: Record<NodeCategory, CategoryReplacement> = {
   statement: {
     placeholderKind: PLACEHOLDER_KIND.STATEMENT,
-    buildNode: () => emptyStatement(),
+    // `;` (EmptyStatement) では元コード由来の `;` と区別不能。
+    // ExpressionStatement(Identifier("$Pn")) で `$Pn;` として可視化し、AST 上も
+    // 2 段の型判定で識別可能にする (ADR-0009)。
+    buildNode: (placeholderId) =>
+      expressionStatement(identifier(sanitizeIdentifier(placeholderId))),
   },
   identifier: {
     placeholderKind: PLACEHOLDER_KIND.IDENTIFIER,
@@ -68,6 +82,20 @@ if (import.meta.vitest) {
     identifier: makeIdentifier,
   } = await import("@babel/types");
 
+  describe("PLACEHOLDER_NAME_PATTERN (in-source)", () => {
+    it("$P + 数字 にマッチ", () => {
+      expect(PLACEHOLDER_NAME_PATTERN.test("$P0")).toBe(true);
+      expect(PLACEHOLDER_NAME_PATTERN.test("$P12")).toBe(true);
+    });
+
+    it("数字なし / 別 prefix / 部分一致は弾く", () => {
+      expect(PLACEHOLDER_NAME_PATTERN.test("$P")).toBe(false);
+      expect(PLACEHOLDER_NAME_PATTERN.test("$VAR")).toBe(false);
+      expect(PLACEHOLDER_NAME_PATTERN.test("foo$P0")).toBe(false);
+      expect(PLACEHOLDER_NAME_PATTERN.test("$P0bar")).toBe(false);
+    });
+  });
+
   describe("replacementFor (in-source) — placeholderKind", () => {
     it("statement カテゴリ: STATEMENT", () => {
       const node = ifStatement(makeIdentifier("c"), blockStatement([]));
@@ -102,16 +130,24 @@ if (import.meta.vitest) {
       expect(replacementFor(program([]))).toBeNull();
     });
 
-    it("EmptyStatement は除外されるので null (アルゴリズム不変条件: 置換ターゲット自身)", () => {
+    it("EmptyStatement は除外されるので null", () => {
       expect(replacementFor(makeEmptyStatement())).toBeNull();
     });
   });
 
   describe("replacementFor (in-source) — buildNode", () => {
-    it("statement: EmptyStatement を生成", () => {
+    it("statement: ExpressionStatement(Identifier($Pn)) を生成", () => {
       const r = replacementFor(ifStatement(makeIdentifier("c"), blockStatement([])));
-      const node = r!.buildNode("$P0");
-      expect(node.type).toBe("EmptyStatement");
+      const node = r!.buildNode("$P0") as ExpressionStatement;
+      expect(node.type).toBe("ExpressionStatement");
+      expect(node.expression.type).toBe("Identifier");
+      expect((node.expression as Identifier).name).toBe("$P0");
+    });
+
+    it("statement: 不正文字を含む placeholderId は inner Identifier 名でサニタイズされる", () => {
+      const r = replacementFor(ifStatement(makeIdentifier("c"), blockStatement([])));
+      const node = r!.buildNode("a-b.c") as ExpressionStatement;
+      expect((node.expression as Identifier).name).toBe("a_b_c");
     });
 
     it("identifier: Identifier を生成 (placeholderId が name)", () => {
