@@ -9,15 +9,13 @@ import * as t from "@babel/types";
  *
  * 除外集合は本 ADR §機械的除外集合 で定義された 3 群:
  *   - 構造的 no-op: `PARSER_PLUGINS` で有効化していない plugin の型 (TS / JSX / Flow)
- *   - アルゴリズム不変条件: `EmptyStatement` (置換ターゲット自身)
+ *   - 元から極小: `EmptyStatement` (元コードの `;` を候補化しても意味がない)
  *   - 時点規範的除外: TC39 stage < 4 の experimental 構文
  *
- * カテゴリの意味:
- *   - statement: `EmptyStatement` に置換して削除する
+ * カテゴリの意味 (詳細は ADR-0009 / `replacement.ts:REPLACEMENTS`):
+ *   - statement: `ExpressionStatement(Identifier("$Pn"))` に置換、`$Pn;` として可視化
  *   - expression: `"$Pn"` 文字列リテラル (式) に置換してワイルドカード化する
- *   - identifier: `$VAR` 識別子に置換してリネーム扱いにする
- *
- * 新しい placeholder kind の追加は `replacement.ts:REPLACEMENTS` を参照。
+ *   - identifier: `$Pn` 識別子に置換してリネーム扱いにする
  */
 
 export type NodeCategory = "statement" | "expression" | "identifier";
@@ -62,8 +60,13 @@ function isPluginExcluded(type: string): boolean {
 }
 
 /**
- * アルゴリズム不変条件: `EmptyStatement` は statement カテゴリの置換ターゲット
- * (`deleteStatement`) 自身。whitelist に入れると自己置換ループが発生する。
+ * 元から極小: `EmptyStatement` は構文上の空文 `;`。元コード由来の `;` を
+ * 別 placeholder で置き換えても表現力は変わらず、候補列挙の無駄試行になるため除外。
+ *
+ * 旧: ADR-0009 以前は `EmptyStatement` が statement カテゴリの置換ターゲット自身
+ * (自己置換ループ防止) という理由だったが、新置換先が
+ * `ExpressionStatement(Identifier("$Pn"))` (ADR-0009) に変わり、自己置換ループの
+ * 防止責務は `candidates.ts:isPlaceholderNode` に移っている。
  */
 const ALREADY_MINIMAL_TYPES = new Set(["EmptyStatement"]);
 
@@ -218,8 +221,8 @@ if (import.meta.vitest) {
     });
   });
 
-  describe("WHITELIST_CATEGORIES (in-source) — アルゴリズム不変条件", () => {
-    it("EmptyStatement は除外される (deleteStatement の置換ターゲット自身)", () => {
+  describe("WHITELIST_CATEGORIES (in-source) — 元から極小", () => {
+    it("EmptyStatement は除外される (元コード由来の `;` を候補化する意味がないため、ADR-0009)", () => {
       expect(WHITELIST_CATEGORIES.has("EmptyStatement")).toBe(false);
     });
   });

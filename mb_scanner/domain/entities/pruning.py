@@ -1,10 +1,13 @@
 """Pruning (Hydra 式 AST 差分フィルタ) の入出力 Pydantic モデル
 
-Node.js 側 (`mb-analyzer/src/shared/types.ts`) と JSON シリアライゼーション互換を保つ。
+Node.js 側 (`mb-analyzer/src/shared/pruning-contracts.ts`) と JSON シリアライゼーション互換を保つ。
 フィールド名は snake_case、列挙値文字列も両言語で完全一致。
 
 - ``PruningInput`` は外部入力 (CLI/JSONL) のため ``extra="forbid"`` で典型ミスを弾く
 - ``PruningResult`` は Node 側の将来フィールド追加に備えて ``extra="ignore"``
+
+入出力の意味論的な詳細 (placeholder の AST 形、3 カテゴリの見え方、元コード衝突の扱い等)
+は TS 側モジュールの README に集約: ``mb-analyzer/src/pruning/README.md`` §入出力契約。
 """
 
 from enum import StrEnum
@@ -65,9 +68,7 @@ class PruningInput(BaseModel):
     fast: str = Field(max_length=MAX_CODE_LENGTH)
     setup: str = Field(default="", max_length=MAX_CODE_LENGTH)
     timeout_ms: int = Field(default=DEFAULT_TIMEOUT_MS, ge=MIN_TIMEOUT_MS, le=MAX_TIMEOUT_MS)
-    max_iterations: int = Field(
-        default=DEFAULT_MAX_ITERATIONS, ge=MIN_MAX_ITERATIONS, le=MAX_MAX_ITERATIONS
-    )
+    max_iterations: int = Field(default=DEFAULT_MAX_ITERATIONS, ge=MIN_MAX_ITERATIONS, le=MAX_MAX_ITERATIONS)
 
 
 class PruningResult(BaseModel):
@@ -81,6 +82,11 @@ class PruningResult(BaseModel):
 
     スキーマ上は全て optional であり、verdict に応じた条件付き必須チェックは行わない
     (Node 側実装との契約は Gateway 層 / integration test で確認する想定)。
+
+    ``pattern_ast`` は any-shape JSON で受ける (Babel AST シリアライズ結果)。statement
+    placeholder は ``ExpressionStatement(Identifier("$Pn"))`` 形 (ADR-0009)、expression は
+    ``StringLiteral("$Pn")``、identifier は ``Identifier("$Pn")`` 形で出力される。
+    詳細は ``mb-analyzer/src/pruning/README.md`` §入出力契約。
     """
 
     model_config = ConfigDict(extra="ignore")

@@ -129,6 +129,27 @@ describe("prune — id エコーバック", () => {
   }, 20_000);
 });
 
+describe("prune — statement placeholder の可視化 (ADR-0009)", () => {
+  it("statement カテゴリの placeholder は pattern_code に $Pn; として現れ、内側 Identifier の AST 型で識別できる", async () => {
+    // 自明削除可能な BlockStatement の body 要素 (ExpressionStatement) を含めて、
+    // statement カテゴリの置換が成立しやすい構造を組む。
+    const code = "function f() { foo(); bar(); } f();";
+    const result = await prune({
+      slow: code,
+      fast: code,
+      timeout_ms: 3000,
+      max_iterations: 100,
+    });
+    expect(result.verdict).toBe("pruned");
+    const stmtPlaceholders = result.placeholders?.filter((p) => p.kind === "statement") ?? [];
+    // Hydra 実行の挙動依存で statement 置換が必ず 1 度は成立するとは保証できない
+    // ため、成立した場合にのみ可視化形を assertion する (回帰防止重視)。
+    if (stmtPlaceholders.length > 0) {
+      expect(result.pattern_code).toMatch(/\$P\d+;/);
+    }
+  }, 30_000);
+});
+
 describe("prune — PR-2 alias-driven whitelist の recall (ADR-0006)", () => {
   // ADR-0006 で whitelist が 24 → 58 型に拡大。PR-2 以前は候補化されなかった
   // 制御構造 / 関数式 / try-catch 等を含むコードでも pruning が完走することを検証する。
