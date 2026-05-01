@@ -134,7 +134,7 @@ if (import.meta.vitest) {
   const candidateTypes = (nodes: Iterable<{ node: Node }>): string[] =>
     [...nodes].map((c) => c.node.type);
 
-  describe("isCandidate (in-source) — placeholder ノード除外 (ADR-0009)", () => {
+  describe("isCandidate (in-source) — placeholder ノード除外", () => {
     it("Identifier の name が $Pn なら除外 (前 iteration で挿入された placeholder)", () => {
       const ph = stubNode("Identifier", { name: "$P0" });
       const parent = stubNode("ExpressionStatement");
@@ -344,9 +344,9 @@ if (import.meta.vitest) {
     });
   });
 
-  describe("enumerateCandidates (in-source) — placeholder 除外 (ADR-0009)", () => {
-    it("入力に既に $Pn Identifier があれば候補から外れる (ユーザー由来でも fast-mark される副作用は ADR-0009 に明記)", () => {
-      // ユーザーが偶然 `$P0` という名前の変数を書いた想定 (実害は ADR-0009 で許容)
+  describe("enumerateCandidates (in-source) — placeholder 除外", () => {
+    it("入力に既に $Pn Identifier があれば候補から外れる", () => {
+      // ユーザーが偶然 `$P0` という名前の変数を書いた想定 (判別不能は ADR-0009 で許容)
       const slow = parse("$P0; foo();");
       const ts = candidateTypes(enumerateCandidates(slow));
       // foo, ExpressionStatement(foo()) などは候補化されるが、$P0 の Identifier と

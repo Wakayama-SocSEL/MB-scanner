@@ -218,7 +218,7 @@ if (import.meta.vitest) {
   });
 
   describe("WHITELIST_CATEGORIES (in-source) — 元から極小", () => {
-    it("EmptyStatement は除外される (元コード由来の `;` を候補化する意味がないため、ADR-0009)", () => {
+    it("EmptyStatement は除外される", () => {
       expect(WHITELIST_CATEGORIES.has("EmptyStatement")).toBe(false);
     });
   });

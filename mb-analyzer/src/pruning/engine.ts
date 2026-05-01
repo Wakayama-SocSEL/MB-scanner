@@ -307,7 +307,7 @@ function writeAt(
 if (import.meta.vitest) {
   const { describe, it, expect, vi } = import.meta.vitest;
 
-  describe("warnIfPlaceholderCollision (in-source) — ADR-0009", () => {
+  describe("warnIfPlaceholderCollision (in-source)", () => {
     it("入力に $Pn Identifier があれば stderr に warning を 1 行出す", () => {
       const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
       try {

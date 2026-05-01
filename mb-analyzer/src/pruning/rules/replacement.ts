@@ -130,13 +130,13 @@ if (import.meta.vitest) {
       expect(replacementFor(program([]))).toBeNull();
     });
 
-    it("EmptyStatement は除外されるので null (元から空の `;` を候補化する意味がないため、ADR-0009)", () => {
+    it("EmptyStatement は除外されるので null", () => {
       expect(replacementFor(makeEmptyStatement())).toBeNull();
     });
   });
 
   describe("replacementFor (in-source) — buildNode", () => {
-    it("statement: ExpressionStatement(Identifier) を生成 ($Pn; として可視化、ADR-0009)", () => {
+    it("statement: ExpressionStatement(Identifier($Pn)) を生成", () => {
       const r = replacementFor(ifStatement(makeIdentifier("c"), blockStatement([])));
       const node = r!.buildNode("$P0") as ExpressionStatement;
       expect(node.type).toBe("ExpressionStatement");

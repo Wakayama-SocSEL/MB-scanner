@@ -129,7 +129,7 @@ describe("prune — id エコーバック", () => {
   }, 20_000);
 });
 
-describe("prune — statement placeholder の可視化 (ADR-0009)", () => {
+describe("prune — statement placeholder の可視化", () => {
   it("statement カテゴリの placeholder は pattern_code に $Pn; として現れ、内側 Identifier の AST 型で識別できる", async () => {
     // 自明削除可能な BlockStatement の body 要素 (ExpressionStatement) を含めて、
     // statement カテゴリの置換が成立しやすい構造を組む。
